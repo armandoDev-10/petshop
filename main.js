@@ -1021,6 +1021,7 @@
 
         // Función para generar y descargar PDF del recibo
         function generateAndDownloadReceiptPDF(receiptId, date, itemsHTML, total) {
+            console.log('Verificando jsPDF:', window.jspdf); // Agregar para depurar
             const { jsPDF } = window.jspdf;
             // Tamaño cuadrado para ticket: 50mm x 50mm
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [50, 50] }); // 50mm ancho y alto
