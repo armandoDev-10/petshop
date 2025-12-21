@@ -53,7 +53,7 @@
         let currentSubcategory = 'all'; // Subcategory logic removed, but kept for now. Will be removed from rendering.
 
         // Pagination variables
-        const productsPerPage = 6; // Number of products to display per page
+        const productsPerPage = 4; // Number of products to display per page
         let currentPage = 1; // Current page number
 
         // Elementos del DOM
@@ -1026,47 +1026,47 @@
             // Tamaño cuadrado para ticket: 50mm x 50mm
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [50, 50] }); // 50mm ancho y alto
 
-            let yPosition = 10; // Posición Y inicial
+            let yPosition = 3; // Posición Y inicial
             const pageHeight = 50; // Altura de la página en mm
-            const marginBottom = 5; // Margen inferior
+            const marginBottom = -3; // Margen inferior
 
             // Función auxiliar para verificar y agregar página si es necesario
             function checkPageBreak(neededSpace) {
                 if (yPosition + neededSpace > pageHeight - marginBottom) {
                     doc.addPage([50, 50]);
-                    yPosition = 10; // Reiniciar yPosition en nueva página
+                    yPosition = 3; // Reiniciar yPosition en nueva página
                 }
             }
 
             // Fuente para ticket
-            doc.setFontSize(8);
+            doc.setFontSize(6);
 
             // Título centrado
-            checkPageBreak(5);
+            checkPageBreak(4);
             doc.text('PetShop - Punto de Venta', 25, yPosition, { align: 'center' });
-            yPosition += 5;
+            yPosition += 4;
 
             // Línea separadora
-            checkPageBreak(5);
-            doc.line(5, yPosition, 45, yPosition);
-            yPosition += 5;
+            checkPageBreak(4);
+            doc.line(4, yPosition, 45, yPosition);
+            yPosition += 4;
 
             // ID del recibo
-            checkPageBreak(5);
+            checkPageBreak(4);
             doc.text(`ID: ${receiptId}`, 5, yPosition);
-            yPosition += 5;
+            yPosition += 4;
 
             // Fecha y hora
             checkPageBreak(8);
             doc.text(`Fecha: ${date.toLocaleDateString('es-ES')}`, 5, yPosition);
             yPosition += 4;
             doc.text(`Hora: ${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`, 5, yPosition);
-            yPosition += 5;
+            yPosition += 4;
 
             // Línea separadora
-            checkPageBreak(5);
-            doc.line(5, yPosition, 45, yPosition);
-            yPosition += 5;
+            checkPageBreak(4);
+            doc.line(4, yPosition, 45, yPosition);
+            yPosition += 4;
 
             // Items (simplificado para ticket)
             checkPageBreak(4);
@@ -1080,25 +1080,34 @@
             items.forEach(item => {
                 const spans = item.querySelectorAll('span');
                 if (spans.length >= 2) {
-                    const productText = spans[0].textContent.substring(0, 20); // Truncar menos
+                    const productText = spans[0].textContent.substring(); // Truncar menos
                     const priceText = spans[1].textContent;
-                    checkPageBreak(4);
-                    doc.text(productText, 5, yPosition);
-                    doc.text(priceText, 45, yPosition, { align: 'right' });
-                    yPosition += 4;
+                    if (productText.length > 27){
+                        checkPageBreak(12);
+                        doc.text(productText, 5, yPosition);
+                        yPosition += 8;
+                        doc.text(priceText, 45, yPosition, { align: 'right' });
+                        yPosition += 4;
+                    }else{
+                        checkPageBreak(8);
+                        doc.text(productText, 5, yPosition);
+                        yPosition += 4;
+                        doc.text(priceText, 45, yPosition, { align: 'right' });
+                        yPosition += 4;
+                    }
                 }
             });
 
             // Línea separadora
-            checkPageBreak(5);
-            doc.line(5, yPosition, 45, yPosition);
-            yPosition += 5;
+            checkPageBreak(4);
+            doc.line(4, yPosition, 45, yPosition);
+            yPosition += 4;
 
             // Total
-            checkPageBreak(5);
-            doc.setFontSize(10); // Un poco más grande para el total
+            checkPageBreak(4);
+            doc.setFontSize(8); // Un poco más grande para el total
             doc.text(`Total: ${formatPrice(total)}`, 45, yPosition, { align: 'right' });
-            yPosition += 5;
+            yPosition += 4;
 
             // Mensaje de agradecimiento
             checkPageBreak(5);
