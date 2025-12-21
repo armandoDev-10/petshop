@@ -156,6 +156,64 @@
             color: white;
         }
 
+        /* Estilos para el modal de login */
+        #login-modal {
+            display: none; /* Oculto inicialmente */
+            z-index: 2000; /* Mayor z-index para estar sobre todo */
+        }
+        
+        /* Clase para mostrar el modal cuando sea necesario */
+        .login-modal-visible {
+            display: flex !important;
+        }
+
+
+        .login-error {
+            color: #dc3545;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        .logout-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-left: 10px;
+        }
+
+        .logout-btn:hover {
+            background-color: #c82333;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-display {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .user-role {
+            font-size: 0.85rem;
+            color: #FFD700;
+        }
+
+
         /* New styles for subcategories */
         .subcategory-container {
             display: flex;
@@ -822,12 +880,22 @@
                     <i class="fas fa-paw"></i>
                     <h1>PetShop - Punto de Venta</h1>
                 </div>
+                <div class="user-info" id="user-info-display" style="display: none;">
+                    <div class="user-display">
+                        <span class="user-name" id="display-user-name"></span>
+                        <span class="user-role" id="display-user-role"></span>
+                    </div>
+                    <button type="button" class="logout-btn" id="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i> Salir
+                    </button>
+                </div>
                 <div class="date-time">
                     <div id="current-date"></div>
                     <div id="current-time"></div>
                 </div>
             </div>
         </header>
+
 
         <div class="main-content">
             <section class="products-section">
@@ -1073,6 +1141,40 @@
                 </form>
             </div>
         </div>
+
+        <!-- Modal de Login -->
+        <div class="receipt-modal" id="login-modal">
+            <div class="receipt-content">
+                <div class="receipt-header">
+                    <h2><i class="fas fa-user-lock"></i> Inicio de Sesión</h2>
+                    <p>PetShop - Sistema de Punto de Venta</p>
+                </div>
+
+                <div id="login-status-message"></div>
+
+                <form id="login-form">
+                    <div class="mb-3">
+                        <label for="login-code" class="form-label">Código de Usuario</label>
+                        <input type="password" class="form-control" id="login-code" 
+                               placeholder="Ingrese su código de acceso" required autofocus>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="remember-me">
+                        <label class="form-check-label" for="remember-me">
+                            Mantener sesión iniciada
+                        </label>
+                    </div>
+
+                    <div class="modal-buttons">
+                        <button type="submit" class="modal-btn btn btn-primary" id="login-btn">
+                            <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
 
 
                 
