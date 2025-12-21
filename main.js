@@ -825,7 +825,16 @@
                 // No need to update product.lastUpdateDate here as it's not a direct stock change on the product itself
             }
 
+            // LIMPIAR EL INPUT DE BÚSQUEDA Y PONER EL FOCO
+                if (searchInput && searchInput.value.trim() !== '') {
+                    searchInput.value = ''; // Limpiar el contenido
+                    searchInput.focus(); // Poner el foco
+                    currentPage = 1; // Resetear a la primera página
+                    renderProducts(); // Re-renderizar los productos sin filtro de búsqueda
+                }
+
             // Actualizar carrito
+            searchInput.focus();
             updateCart();
 
             // Mostrar mensaje de confirmación
@@ -910,7 +919,17 @@
                 product.lastUpdateDate = new Date().toLocaleString();
                 updateCart();
                 saveProductsToLocalStorage();
+
+                // LIMPIAR EL INPUT DE BÚSQUEDA Y PONER EL FOCO
+                if (searchInput && searchInput.value.trim() !== '') {
+                    searchInput.value = ''; // Limpiar el contenido
+                    searchInput.focus(); // Poner el foco
+                    currentPage = 1; // Resetear a la primera página
+                    renderProducts(); // Re-renderizar los productos sin filtro de búsqueda
+                }
+
             }
+            searchInput.focus();
         }
 
         // Función para eliminar producto del carrito
@@ -921,7 +940,16 @@
 
             if ( item) {
                 showStatusMessage(`${item.name} eliminado del carrito`, 'info');
+
+                // LIMPIAR EL INPUT DE BÚSQUEDA Y PONER EL FOCO
+                if (searchInput && searchInput.value.trim() !== '') {
+                    searchInput.value = ''; // Limpiar el contenido
+                    searchInput.focus(); // Poner el foco
+                    currentPage = 1; // Resetear a la primera página
+                    renderProducts(); // Re-renderizar los productos sin filtro de búsqueda
+                }
             }
+            searchInput.focus();
         }
 
         // Función para calcular totales (sin IVA)%
@@ -1011,6 +1039,15 @@
             // Vaciar carrito
             cart = [];
             updateCart();
+            searchInput.focus();
+
+            // LIMPIAR EL INPUT DE BÚSQUEDA Y PONER EL FOCO
+            if (searchInput && searchInput.value.trim() !== '') {
+                searchInput.value = ''; // Limpiar el contenido
+                searchInput.focus(); // Poner el foco
+                currentPage = 1; // Resetear a la primera página
+                renderProducts(); // Re-renderizar los productos sin filtro de búsqueda
+            }
 
             // Actualizar lista de productos
             renderProducts();
@@ -1244,48 +1281,265 @@
                 showStatusMessage('Clave incorrecta. El modo edición no se activó.', 'error');
             }
         }
-
-        // Función para verificar el código de usuario
-        function verifyUserCode() {
-            // Cargar datos de usuarios antes de pedir el código
-            const savedUsers = localStorage.getItem('petshop_users');
-            if (savedUsers) {
+    
+        // Variables para gestión de sesión
+        const SESSION_TIMEOUT = 60 * 60 * 1000; // 1 hora en milisegundos
+        let sessionTimer = null;
+            
+        // Función para verificar sesión existente
+        function checkExistingSession() {
+            const sessionData = localStorage.getItem('petshop_session');
+        
+            if (sessionData) {
                 try {
-                    users = JSON.parse(savedUsers);
-                    // Ensure loaded users have 'id' property
-                    users = users.map((user, index) => ({ ...user, id: user.id || index + 1 }));
+                    const session = JSON.parse(sessionData);
+                    const now = new Date().getTime();
+                
+                    // Verificar si la sesión ha expirado
+                    if (session.expiresAt && now < session.expiresAt) {
+                        // Buscar el usuario correspondiente al código
+                        const user = users.find(u => u.code === session.userCode);
+                        if (user) {
+                            currentUser = user;
+                            startSessionTimer();
+                            hideLoginModal();
+                            updateUserDisplay();
+
+                            // Inicializar interfaz principal
+                            initMainInterface();
+
+                            return true;
+                        }
+                    } else {
+                        // Sesión expirada, limpiar
+                        localStorage.removeItem('petshop_session');
+                    }
                 } catch (error) {
-                    console.error('Error al cargar usuarios desde localStorage:', error);
-                    users = [];
+                    console.error('Error al cargar sesión:', error);
+                    localStorage.removeItem('petshop_session');
                 }
             }
-            // Si no hay usuarios cargados, cargar datos de ejemplo
-            if (users.length === 0) {
-                users = [
-                    { id: 1, name: "Admin", role: "admin", code: "ADMIN001" },
-                    { id: 2, name: "Vendedor 1", role: "seller", code: "SELL001" },
-                    { id: 3, name: "Vendedor 2", role: "seller", code: "SELL002" }
-                ];
+        
+            return false;
+        }
+
+
+        // Función para mostrar modal de login
+        function showLoginModal() {
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal) {
+                loginModal.classList.add('login-modal-visible');
             }
+            // Enfocar el campo de código
+            setTimeout(() => {
+                const loginCodeInput = document.getElementById('login-code');
+                if (loginCodeInput) {
+                    loginCodeInput.focus();
+                }
+            }, 100);
+        }
 
-            const userCode = prompt("Por favor, ingrese su código de usuario:");
-            // Verificar si el código de usuario existe en la lista de usuarios
-            const userExists = users.some(user => user.code === userCode);
-
-            if (userExists) {
-                currentUser = users.find(user => user.code === userCode);
-                alert("Código de usuario válido. Bienvenido!");
-                // Aquí se puede redirigir a la página de inicio o cargar el contenido correspondiente
-            } else {
-                // Mostrar solo el mensaje de usuario no encontrado
-                document.body.innerHTML = '<h1 style="text-align: center; margin-top: 20%;">USUARIO NO ENCONTRADO</h1>';
-                // Detener la ejecución del resto del script
-                return;
+        // Función para ocultar modal de login
+        function hideLoginModal() {
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal) {
+                loginModal.classList.remove('login-modal-visible');
             }
         }
 
+
+        // Función para actualizar la visualización del usuario en el header
+        function updateUserDisplay() {
+            const userInfoDisplay = document.getElementById('user-info-display');
+            const userNameDisplay = document.getElementById('display-user-name');
+            const userRoleDisplay = document.getElementById('display-user-role');
+
+            if (currentUser) {
+                userInfoDisplay.style.display = 'flex';
+                userNameDisplay.textContent = `Usuario: ${currentUser.name}`;
+                userRoleDisplay.textContent = `Rol: ${currentUser.role}`;
+
+                // Mostrar/ocultar botón de edición según rol
+                const toggleBtn = document.getElementById('toggle-edit-mode-btn');
+                if (toggleBtn) {
+                    toggleBtn.style.display = currentUser.role === 'admin' ? 'block' : 'none';
+                }
+            } else {
+                userInfoDisplay.style.display = 'none';
+            }
+        }
+
+        // Función para iniciar sesión
+        function loginUser(userCode, rememberMe = false) {
+            const user = users.find(u => u.code === userCode);
+        
+            if (!user) {
+                showLoginStatusMessage('Código de usuario no válido', 'error');
+                return false;
+            }
+        
+            currentUser = user;
+        
+            // Guardar sesión si el usuario seleccionó "recordar"
+            if (rememberMe) {
+                const sessionData = {
+                    userCode: user.code,
+                    expiresAt: new Date().getTime() + SESSION_TIMEOUT
+                };
+                localStorage.setItem('petshop_session', JSON.stringify(sessionData));
+                startSessionTimer();
+            }
+        
+            hideLoginModal();
+            updateUserDisplay();
+            showStatusMessage(`Bienvenido, ${user.name}!`, 'success');
+
+            // Mostrar contenido principal
+            const mainContent = document.querySelector('.main-content');
+            const footer = document.querySelector('footer');
+
+            if (mainContent) {
+                mainContent.style.display = 'flex';
+            }
+            if (footer) {
+                footer.style.display = 'flex';
+            }
+
+            // Inicializar interfaz principal
+            initMainInterface();
+        
+            return true;
+        }
+
+
+
+
+        // Función para cerrar sesión
+        function logoutUser() {
+            if (confirm('¿Está seguro que desea cerrar sesión?')) {
+                currentUser = null;
+                localStorage.removeItem('petshop_session');
+                clearTimeout(sessionTimer);
+
+                // Ocultar contenido principal
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    mainContent.style.display = 'none';
+                }
+
+                // Ocultar footer
+                const footer = document.querySelector('footer');
+                if (footer) {
+                    footer.style.display = 'none';
+                }
+
+                // Limpiar el formulario de login
+                const loginForm = document.getElementById('login-form');
+                if (loginForm) {
+                    loginForm.reset();
+                }
+
+                // Mostrar modal de login
+                setTimeout(() => {
+                    showLoginModal();
+                }, 100);
+
+                showStatusMessage('Sesión cerrada correctamente', 'info');
+
+                // Desactivar modo edición si está activo
+                if (editModeActive) {
+                    toggleEditMode();
+                }
+            }
+        }
+
+
+
+        // Función para iniciar temporizador de sesión
+        function startSessionTimer() {
+            clearTimeout(sessionTimer);
+
+            sessionTimer = setTimeout(() => {
+                showStatusMessage('Su sesión ha expirado por inactividad', 'info');
+                logoutUser();
+            }, SESSION_TIMEOUT);
+        }
+
+        // Función para mostrar mensajes en el login
+        function showLoginStatusMessage(message, type = 'info') {
+            const statusElement = document.getElementById('login-status-message');
+            if (statusElement) {
+                statusElement.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+
+                if (type === 'success' || type === 'info') {
+                    setTimeout(() => {
+                        statusElement.innerHTML = '';
+                    }, 5000);
+                }
+            }
+        }
+
+        // Función para inicializar el sistema de login
+        function initLoginSystem() {
+            // Ocultar contenido principal inicialmente
+            const mainContent = document.querySelector('.main-content');
+            const footer = document.querySelector('footer');
+
+            if (mainContent) {
+                mainContent.style.display = 'none';
+            }
+            if (footer) {
+                footer.style.display = 'none';
+            }
+
+            // Verificar si hay una sesión activa
+            if (!checkExistingSession()) {
+                // Mostrar modal de login
+                setTimeout(() => {
+                    showLoginModal();
+                }, 100);
+            }
+            // Si hay sesión, checkExistingSession() ya llamará a initMainInterface()
+        
+            // Configurar event listeners para login
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) {
+                loginForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const userCode = document.getElementById('login-code').value.trim();
+                    const rememberMe = document.getElementById('remember-me').checked;
+                
+                    if (!userCode) {
+                        showLoginStatusMessage('Por favor ingrese su código de usuario', 'error');
+                        return;
+                    }
+                
+                    loginUser(userCode, rememberMe);
+                });
+            }
+        
+            // Configurar event listener para logout
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', logoutUser);
+            }
+        
+            // Resetear temporizador de inactividad con interacción del usuario
+            const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+            activityEvents.forEach(event => {
+                document.addEventListener(event, () => {
+                    if (currentUser && sessionTimer) {
+                        startSessionTimer();
+                    }
+                });
+            });
+        }
+
+
+
+
         // Inicializar la verificación al cargar la página
-        document.addEventListener('DOMContentLoaded', verifyUserCode);
+        //document.addEventListener('DOMContentLoaded', verifyUserCode);
 
         // Función para inicializar event listeners
         function initEventListeners() {
@@ -1756,32 +2010,25 @@
 
         // Inicializar la aplicación
         function initApp() {
-            // Poblar el header con la información del usuario
-            const header = document.querySelector('header');
-            header.innerHTML = `
-                <div class="header-content">
-                    <div class="logo">
-                        <i class="fas fa-paw"></i>
-                        <h1>PetShop - Punto de Venta</h1>
-                    </div>
-                    <div class="user-info">
-                        <span id="user-name">Nombre: ${currentUser ? currentUser.name : ''}</span>
-                        <span id="user-role">Rol: ${currentUser ? currentUser.role : ''}</span>
-                    </div>
-                    <div class="date-time">
-                        <div id="current-date"></div>
-                        <div id="current-time"></div>
-                    </div>
-                </div>
-            `;
-
+            // Primero actualizar fecha y hora
             updateDateTime();
+
+            // Cargar datos iniciales
             loadInitialData();
-            // renderCategories(); // Removed
-            renderSubcategories();
-            renderProducts();
-            updateCart();
-            initEventListeners();
+
+            // Inicializar sistema de login
+            initLoginSystem();
+
+            // NO renderizar nada más hasta que el usuario inicie sesión
+            // Las funciones renderProducts(), updateCart(), etc. se llamarán después del login
+        }
+
+        // Función para inicializar la interfaz principal DESPUÉS del login
+        function initMainInterface() {
+            // Limpiar mensajes de status anteriores
+            if (statusMessageElement) {
+                statusMessageElement.innerHTML = '';
+            }
 
             // Ocultar el botón de toggle edit mode si el usuario no es admin
             if (currentUser && currentUser.role !== 'admin') {
@@ -1791,7 +2038,16 @@
                 }
             }
 
-            // Guardar productos automáticamente cada 30 segundos
+            // Actualizar la visualización del usuario
+            updateUserDisplay();
+
+            // Renderizar componentes principales
+            renderSubcategories();
+            renderProducts();
+            updateCart();
+            initEventListeners();
+
+            // Configurar guardado automático
             setInterval(saveProductsToLocalStorage, 30000);
             setInterval(saveSalesToLocalStorage, 30000);
             setInterval(saveUsersToLocalStorage, 30000);
@@ -1802,6 +2058,13 @@
                 saveSalesToLocalStorage();
                 saveUsersToLocalStorage();
             });
+
+            // Poner foco en la búsqueda
+            setTimeout(() => {
+                if (searchInput) {
+                    searchInput.focus();
+                }
+            }, 500);
         }
 
         // Inicializar cuando el DOM esté cargado
