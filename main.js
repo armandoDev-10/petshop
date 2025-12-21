@@ -1028,7 +1028,7 @@
 
             let yPosition = 3; // Posición Y inicial
             const pageHeight = 50; // Altura de la página en mm
-            const marginBottom = -3; // Margen inferior
+            const marginBottom = -4; // Margen inferior
 
             // Función auxiliar para verificar y agregar página si es necesario
             function checkPageBreak(neededSpace) {
@@ -1082,7 +1082,7 @@
                 if (spans.length >= 2) {
                     const productText = spans[0].textContent.substring(); // Truncar menos
                     const priceText = spans[1].textContent;
-                    if (productText.length > 27){
+                    if (productText.length > 36){
                         checkPageBreak(12);
                         doc.text(productText, 5, yPosition);
                         yPosition += 8;
