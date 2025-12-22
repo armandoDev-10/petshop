@@ -130,6 +130,28 @@
         // Variable global para el usuario actual
         let currentUser = null;
 
+        // Agregar después de las otras declaraciones de elementos del DOM
+        const openReportsModalBtn = document.getElementById('open-reports-modal-btn');
+        const reportsModal = document.getElementById('reports-modal');
+        const closeReportsModalBtn = document.getElementById('close-reports-modal-btn');
+        const reportsForm = document.getElementById('reports-form');
+        const startDateInput = document.getElementById('start-date');
+        const endDateInput = document.getElementById('end-date');
+        const reportTypeSelect = document.getElementById('report-type');
+        const reportsFormStatusMessage = document.getElementById('reports-form-status-message');
+        const exportReportBtn = document.getElementById('export-report-btn');
+        const reportResults = document.getElementById('report-results');
+        const totalSalesAmount = document.getElementById('total-sales-amount');
+        const totalSalesCount = document.getElementById('total-sales-count');
+        const totalItemsSold = document.getElementById('total-items-sold');
+        const averageSale = document.getElementById('average-sale');
+        const salesTableBody = document.getElementById('sales-table-body');
+        let salesChart = null;
+
+        const exportPdfBtn = document.getElementById('export-pdf-btn');
+
+
+
         // Función para mostrar mensajes de estado
         function showStatusMessage(message, type = 'info') {
             statusMessageElement.innerHTML = `<div class="status-message ${type}">${message}</div>`;
@@ -1231,6 +1253,819 @@
             addUserModal.style.display = 'none';
         }
 
+        // Función para mostrar mensajes en el formulario de reportes
+        function showReportsFormStatusMessage(message, type = 'info') {
+            reportsFormStatusMessage.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+        
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    reportsFormStatusMessage.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        // Función para abrir el modal de reportes
+        function openReportsModal() {
+            // Establecer fechas por defecto (últimos 30 días)
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+
+            startDateInput.value = startDate.toISOString().split('T')[0];
+            endDateInput.value = endDate.toISOString().split('T')[0];
+
+            reportsFormStatusMessage.innerHTML = '';
+            reportResults.style.display = 'none';
+            reportsModal.style.display = 'flex';
+        }
+
+        // Función para cerrar el modal de reportes
+        function closeReportsModal() {
+            reportsModal.style.display = 'none';
+            exportPdfBtn.style.display = 'none';
+            if (salesChart) {
+                salesChart.destroy();
+                salesChart = null;
+            }
+        }
+
+        // Función para filtrar ventas por rango de fechas
+        function filterSalesByDateRange(startDate, endDate) {
+            return sales.filter(sale => {
+                const saleDate = parseDate(sale.date);
+                return saleDate >= startDate && saleDate <= endDate;
+            });
+        }
+
+        // Función mejorada para parsear fecha en formato español
+        function parseDate(dateString) {
+            // Si es un objeto Date, retornarlo directamente
+            if (dateString instanceof Date) {
+                return dateString;
+            }
+
+            // Intentar formato español (dd/mm/yyyy)
+            const parts = dateString.split('/');
+            if (parts.length === 3) {
+                const [day, month, year] = parts;
+                return new Date(year, month - 1, day);
+            }
+
+            // Intentar formato con hora (dd/mm/yyyy hh:mm)
+            if (dateString.includes(' ')) {
+                const [datePart, timePart] = dateString.split(' ');
+                const dateParts = datePart.split('/');
+                if (dateParts.length === 3) {
+                    const [day, month, year] = dateParts;
+                    const timeParts = timePart.split(':');
+                    const hours = parseInt(timeParts[0]) || 0;
+                    const minutes = parseInt(timeParts[1]) || 0;
+                    return new Date(year, month - 1, day, hours, minutes);
+                }
+            }
+
+            // Intentar formato ISO
+            const isoDate = new Date(dateString);
+            if (!isNaN(isoDate.getTime())) {
+                return isoDate;
+            }
+
+            // Si todo falla, retornar fecha actual
+            console.warn('No se pudo parsear la fecha:', dateString);
+            return new Date();
+        }
+
+        // Función para formatear fecha para visualización
+        function formatDateForDisplay(date) {
+            return date.toLocaleDateString('es-ES');
+        }
+
+        // Función para generar estadísticas de ventas
+        function generateSalesStats(filteredSales) {
+            const stats = {
+                totalSales: filteredSales.length,
+                totalAmount: 0,
+                totalItems: 0,
+                salesByDay: {},
+                salesByUser: {},
+                topProducts: {}
+            };
+
+            filteredSales.forEach(sale => {
+                stats.totalAmount += sale.total;
+
+                // Contar items por venta
+                sale.items.forEach(item => {
+                    stats.totalItems += item.quantity;
+
+                    // Acumular por producto
+                    if (!stats.topProducts[item.name]) {
+                        stats.topProducts[item.name] = {
+                            name: item.name,
+                            quantity: 0,
+                            revenue: 0
+                        };
+                    }
+                    stats.topProducts[item.name].quantity += item.quantity;
+                    stats.topProducts[item.name].revenue += item.quantity * item.price;
+                });
+
+                // Acumular por día
+                const saleDay = sale.date;
+                if (!stats.salesByDay[saleDay]) {
+                    stats.salesByDay[saleDay] = {
+                        date: saleDay,
+                        amount: 0,
+                        count: 0
+                    };
+                }
+                stats.salesByDay[saleDay].amount += sale.total;
+                stats.salesByDay[saleDay].count += 1;
+
+                // Acumular por usuario
+                if (!stats.salesByUser[sale.user]) {
+                    stats.salesByUser[sale.user] = {
+                        user: sale.user,
+                        amount: 0,
+                        count: 0
+                    };
+                }
+                stats.salesByUser[sale.user].amount += sale.total;
+                stats.salesByUser[sale.user].count += 1;
+            });
+
+            return stats;
+        }
+
+        // Función para renderizar gráfico
+        function renderSalesChart(stats, chartType = 'bar') {
+            const ctx = document.getElementById('sales-chart').getContext('2d');
+
+            // Destruir gráfico anterior si existe
+            if (salesChart) {
+                salesChart.destroy();
+            }
+
+            // Preparar datos para el gráfico
+            const days = Object.keys(stats.salesByDay).sort();
+            const amounts = days.map(day => stats.salesByDay[day].amount);
+
+            const config = {
+                type: chartType,
+                data: {
+                    labels: days,
+                    datasets: [{
+                        label: 'Ventas por Día ($)',
+                        data: amounts,
+                        backgroundColor: chartType === 'bar' ? 'rgba(54, 162, 235, 0.5)' : 
+                                      chartType === 'line' ? 'rgba(54, 162, 235, 0.2)' : 
+                                      getRandomColors(days.length),
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Ventas por Día',
+                            font: {
+                                size: 16
+                            }
+                        },
+                        legend: {
+                            display: chartType === 'pie' || chartType === 'doughnut'
+                        }
+                    },
+                    scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(2);
+                                }
+                            }
+                        }
+                    } : {}
+                }
+            };
+
+            salesChart = new Chart(ctx, config);
+        }
+
+        // Función para generar colores aleatorios para gráficos de pastel
+        function getRandomColors(count) {
+            const colors = [];
+            for (let i = 0; i < count; i++) {
+                colors.push(`hsl(${(i * 360) / count}, 70%, 60%)`);
+            }
+            return colors;
+        }
+
+        // Función para renderizar tabla de ventas detalladas
+        function renderSalesTable(filteredSales) {
+            salesTableBody.innerHTML = '';
+
+            // Ordenar por fecha descendente (ya está ordenado en generateSalesReport)
+            filteredSales.forEach(sale => {
+                const row = document.createElement('tr');
+
+                // Calcular cantidad total de productos
+                const totalItems = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+
+                // Crear lista de productos
+                const productsList = sale.items.map(item => 
+                    `<div class="product-list-item">
+                        <span class="product-name-small">${item.name}</span>
+                        <span class="product-quantity-small">x${item.quantity}</span>
+                    </div>`
+                ).join('');
+
+                // Agregar indicador de nueva venta si es del día actual
+                const saleDate = parseDate(sale.date);
+                const today = new Date();
+                const isToday = saleDate.toDateString() === today.toDateString();
+                const isRecent = (today - saleDate) < 24 * 60 * 60 * 1000; // Menos de 24 horas
+
+                let dateBadge = '';
+                if (isToday) {
+                    dateBadge = '<span class="badge badge-success" style="margin-left: 5px; font-size: 10px;">HOY</span>';
+                } else if (isRecent) {
+                    dateBadge = '<span class="badge badge-info" style="margin-left: 5px; font-size: 10px;">RECIENTE</span>';
+                }
+
+                row.innerHTML = `
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <span>${sale.id}</span>
+                            ${dateBadge}
+                        </div>
+                    </td>
+                    <td>
+                        <div style="font-weight: 600;">${sale.date}</div>
+                        <div style="font-size: 12px; color: #718096;">${sale.time}</div>
+                    </td>
+                    <td>
+                        <div class="user-badge" style="background: #e9d8fd; color: #553c9a; padding: 4px 8px; border-radius: 12px; font-size: 12px; display: inline-block;">
+                            ${sale.user}
+                        </div>
+                    </td>
+                    <td><div class="products-list">${productsList}</div></td>
+                    <td>
+                        <span class="badge badge-primary" style="background: #4c51bf; color: white; padding: 5px 10px; border-radius: 10px; font-size: 12px;">
+                            ${totalItems} items
+                        </span>
+                    </td>
+                    <td>
+                        <span style="font-weight: 700; color: #2d3748;">${formatPrice(sale.total)}</span>
+                    </td>
+                `;
+
+                salesTableBody.appendChild(row);
+            });
+        }
+
+        // Función para generar reporte de ventas
+        function generateSalesReport(startDate, endDate, chartType = 'bar') {
+            if (sales.length === 0) {
+                showReportsFormStatusMessage('No hay datos de ventas para generar reportes.', 'error');
+                return;
+            }
+
+            // Filtrar ventas por rango de fechas
+            let filteredSales = filterSalesByDateRange(startDate, endDate);
+
+            if (filteredSales.length === 0) {
+                showReportsFormStatusMessage('No hay ventas en el rango de fechas seleccionado.', 'error');
+                return;
+            }
+
+            // Ordenar por fecha descendente (más reciente primero)
+            filteredSales.sort((a, b) => {
+                const dateA = parseDate(a.date + ' ' + a.time);
+                const dateB = parseDate(b.date + ' ' + b.time);
+                return dateB - dateA; // Orden descendente
+            });
+
+            // Generar estadísticas
+            const stats = generateSalesStats(filteredSales);
+
+            // Actualizar estadísticas en la UI
+            totalSalesAmount.textContent = formatPrice(stats.totalAmount);
+            totalSalesCount.textContent = stats.totalSales;
+            totalItemsSold.textContent = stats.totalItems;
+            averageSale.textContent = formatPrice(stats.totalSales > 0 ? stats.totalAmount / stats.totalSales : 0);
+
+            // Renderizar gráfico
+            renderSalesChart(stats, chartType);
+
+            // Renderizar tabla de ventas
+            renderSalesTable(filteredSales);
+
+            // Mostrar resultados y botón de PDF
+            reportResults.style.display = 'block';
+            exportPdfBtn.style.display = 'block';
+
+            // Guardar datos del reporte actual para exportación
+            window.currentReportData = {
+                startDate,
+                endDate,
+                filteredSales,
+                stats,
+                chartType
+            };
+
+            showReportsFormStatusMessage(`Reporte generado: ${filteredSales.length} ventas encontradas`, 'success');
+        }
+
+        // Función para exportar reporte a Excel
+        function exportReportToExcel() {
+            if (!window.currentReportData || !window.currentReportData.filteredSales) {
+                showReportsFormStatusMessage('No hay datos de reporte para exportar.', 'error');
+                return;
+            }
+
+            const { filteredSales, stats, startDate, endDate } = window.currentReportData;
+
+            // Crear datos para exportación
+            const exportData = [];
+
+            // Agregar resumen del reporte
+            exportData.push(
+                { 'Tipo': 'Reporte de Ventas', 'Valor': '' },
+                { 'Tipo': 'Período', 'Valor': `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` },
+                { 'Tipo': 'Total Ventas', 'Valor': filteredSales.length },
+                { 'Tipo': 'Monto Total', 'Valor': formatPrice(stats.totalAmount) },
+                { 'Tipo': 'Productos Vendidos', 'Valor': stats.totalItems },
+                { 'Tipo': 'Venta Promedio', 'Valor': formatPrice(stats.totalSales > 0 ? stats.totalAmount / stats.totalSales : 0) },
+                { 'Tipo': '', 'Valor': '' }
+            );
+
+            // Agregar encabezados de ventas detalladas
+            exportData.push(
+                { 'ID Venta': '', 'Fecha': '', 'Hora': '', 'Usuario': '', 'Producto': '', 'Cantidad': '', 'Precio Unitario': '', 'Total Producto': '' }
+            );
+
+            // Agregar ventas detalladas
+            filteredSales.forEach(sale => {
+                sale.items.forEach(item => {
+                    exportData.push({
+                        'ID Venta': sale.id,
+                        'Fecha': sale.date,
+                        'Hora': sale.time,
+                        'Usuario': sale.user,
+                        'Producto': item.name,
+                        'Cantidad': item.quantity,
+                        'Precio Unitario': item.price,
+                        'Total Producto': (item.quantity * item.price).toFixed(2)
+                    });
+                });
+            });
+
+            // Agregar separador
+            exportData.push(
+                { 'Tipo': '', 'Valor': '' },
+                { 'Tipo': 'Ventas por Día', 'Valor': '' }
+            );
+
+            // Agregar ventas por día
+            Object.keys(stats.salesByDay).sort().forEach(day => {
+                exportData.push({
+                    'Tipo': day,
+                    'Valor': formatPrice(stats.salesByDay[day].amount)
+                });
+            });
+
+            // Crear hoja de trabajo
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            // Crear libro de trabajo
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Reporte_Ventas');
+
+            // Generar nombre de archivo
+            const startStr = startDate.toISOString().split('T')[0];
+            const endStr = endDate.toISOString().split('T')[0];
+            const fileName = `reporte_ventas_${startStr}_${endStr}.xlsx`;
+
+            // Descargar archivo
+            XLSX.writeFile(wb, fileName);
+        
+            showReportsFormStatusMessage('Reporte exportado a Excel correctamente', 'success');
+        }
+            
+        // Función para exportar reporte a PDF
+        function exportReportToPDF() {
+            if (!window.currentReportData || !window.currentReportData.filteredSales) {
+                showReportsFormStatusMessage('No hay datos de reporte para exportar a PDF.', 'error');
+                return;
+            }
+
+            const { startDate, endDate, filteredSales, stats, chartType } = window.currentReportData;
+
+            // Mostrar mensaje de procesamiento
+            showReportsFormStatusMessage('Generando PDF, por favor espere...', 'info');
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Configuración
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const margin = 20;
+            let yPosition = margin;
+            const lineHeight = 7;
+            const sectionSpacing = 15;
+
+            // Función para agregar texto con manejo de salto de página
+            function addText(text, x, y, options = {}) {
+                const maxWidth = pageWidth - (margin * 2) - (x - margin);
+                const lines = pdf.splitTextToSize(text, maxWidth);
+
+                // Verificar si hay espacio suficiente
+                const neededHeight = lines.length * lineHeight;
+                if (y + neededHeight > pdf.internal.pageSize.getHeight() - margin) {
+                    pdf.addPage();
+                    y = margin;
+                }
+
+                pdf.text(lines, x, y, options);
+                return y + (lines.length * lineHeight) + (options.spacing || 0);
+            }
+
+            // Función mejorada para dibujar línea
+            function drawLine(y, startX = margin, endX = pageWidth - margin, color = [200, 200, 200], width = 0.5) {
+                pdf.setDrawColor(...color);
+                pdf.setLineWidth(width);
+                pdf.line(startX, y, endX, y);
+                return y + 5;
+            }
+
+
+            // Función para crear una celda de tabla
+            function addTableCell(text, x, y, width, align = 'left', bold = false) {
+                if (bold) {
+                    pdf.setFont(undefined, 'bold');
+                }
+
+                // Establecer color de fondo para encabezados
+                if (bold) {
+                    pdf.setFillColor(102, 126, 234);
+                    pdf.rect(x, y - 4, width, 8, 'F');
+                    pdf.setTextColor(255, 255, 255);
+                } else {
+                    pdf.setTextColor(0, 0, 0);
+                }
+
+                pdf.text(text, x + (align === 'center' ? width / 2 : align === 'right' ? width - 2 : 2), y, {
+                    align: align
+                });
+
+                if (bold) {
+                    pdf.setFont(undefined, 'normal');
+                    pdf.setTextColor(0, 0, 0);
+                }
+
+                // Dibujar borde de la celda
+                pdf.setDrawColor(200, 200, 200);
+                pdf.setLineWidth(0.2);
+                pdf.rect(x, y - 4, width, 8);
+            }
+
+            // 1. ENCABEZADO DEL REPORTE
+            pdf.setFontSize(24);
+            pdf.setTextColor(102, 126, 234);
+            yPosition = addText('REPORTE DE VENTAS', margin, yPosition);
+
+            pdf.setFontSize(14);
+            pdf.setTextColor(118, 75, 162);
+            yPosition = addText(`Período: ${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}`, 
+                               margin, yPosition + 5);
+
+            pdf.setFontSize(10);
+            pdf.setTextColor(100, 100, 100);
+            yPosition = addText(`Generado el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`, 
+                               margin, yPosition + 3);
+
+            yPosition = drawLine(yPosition + 10);
+
+            // 2. RESUMEN ESTADÍSTICO
+            pdf.setFontSize(16);
+            pdf.setTextColor(76, 81, 191);
+            yPosition = addText('RESUMEN ESTADÍSTICO', margin, yPosition + sectionSpacing);
+
+            pdf.setFontSize(10);
+            pdf.setTextColor(0, 0, 0);
+
+            // Crear tabla de estadísticas
+            const statWidth = (pageWidth - (margin * 2)) / 4;
+            let statX = margin;
+
+            // Fila de títulos
+            addTableCell('TOTAL VENTAS', statX, yPosition + 10, statWidth, 'center', true);
+            addTableCell('CANT. VENTAS', statX + statWidth, yPosition + 10, statWidth, 'center', true);
+            addTableCell('PROD. VENDIDOS', statX + (statWidth * 2), yPosition + 10, statWidth, 'center', true);
+            addTableCell('VENTA PROMEDIO', statX + (statWidth * 3), yPosition + 10, statWidth, 'center', true);
+
+            // Fila de valores
+            addTableCell(formatPrice(stats.totalAmount), statX, yPosition + 20, statWidth, 'center');
+            addTableCell(stats.totalSales.toString(), statX + statWidth, yPosition + 20, statWidth, 'center');
+            addTableCell(stats.totalItems.toString(), statX + (statWidth * 2), yPosition + 20, statWidth, 'center');
+            addTableCell(formatPrice(stats.totalSales > 0 ? stats.totalAmount / stats.totalSales : 0), 
+                         statX + (statWidth * 3), yPosition + 20, statWidth, 'center');
+
+            yPosition += 30;
+            yPosition = drawLine(yPosition + 10);
+
+            // 3. CAPTURAR Y AGREGAR IMAGEN DEL GRÁFICO
+            const chartCanvas = document.getElementById('sales-chart');
+            if (chartCanvas) {
+                html2canvas(chartCanvas, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    logging: false
+                }).then(chartImage => {
+                    const imgData = chartImage.toDataURL('image/png');
+                    const imgWidth = pageWidth - (margin * 2);
+                    const imgHeight = (chartCanvas.height * imgWidth) / chartCanvas.width;
+
+                    // Verificar espacio en página
+                    if (yPosition + imgHeight > pdf.internal.pageSize.getHeight() - margin) {
+                        pdf.addPage();
+                        yPosition = margin;
+                    }
+
+                    pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight);
+                    yPosition += imgHeight + 10;
+
+                    // Continuar con el resto del contenido después de la imagen
+                    continuePDFContent();
+                }).catch(error => {
+                    console.error('Error capturando gráfico:', error);
+                    continuePDFContent();
+                });
+            } else {
+                continuePDFContent();
+            }
+
+            // Función para continuar con el contenido del PDF
+            function continuePDFContent() {
+                // 4. VENTAS POR DÍA
+                pdf.setFontSize(16);
+                pdf.setTextColor(76, 81, 191);
+                yPosition = addText('VENTAS POR DÍA', margin, yPosition + sectionSpacing);
+
+                // Ordenar días descendente
+                const sortedDays = Object.keys(stats.salesByDay).sort((a, b) => {
+                    return parseDate(b) - parseDate(a);
+                });
+
+                if (sortedDays.length > 0) {
+                    const dayWidth = (pageWidth - (margin * 2)) / 4;
+                    let dayX = margin;
+
+                    // Encabezados de tabla
+                    addTableCell('FECHA', dayX, yPosition + 10, dayWidth, 'center', true);
+                    addTableCell('VENTAS', dayX + dayWidth, yPosition + 10, dayWidth, 'center', true);
+                    addTableCell('TOTAL', dayX + (dayWidth * 2), yPosition + 10, dayWidth, 'center', true);
+                    addTableCell('PROMEDIO', dayX + (dayWidth * 3), yPosition + 10, dayWidth, 'center', true);
+
+                    let tableY = yPosition + 20;
+
+                    // Filas de datos
+                    sortedDays.forEach(day => {
+                        const dayStats = stats.salesByDay[day];
+
+                        // Verificar espacio para nueva fila
+                        if (tableY > pdf.internal.pageSize.getHeight() - margin) {
+                            pdf.addPage();
+                            tableY = margin + 20;
+                        }
+
+                        addTableCell(day, dayX, tableY, dayWidth, 'center');
+                        addTableCell(dayStats.count.toString(), dayX + dayWidth, tableY, dayWidth, 'center');
+                        addTableCell(formatPrice(dayStats.amount), dayX + (dayWidth * 2), tableY, dayWidth, 'center');
+                        addTableCell(formatPrice(dayStats.amount / dayStats.count), 
+                                   dayX + (dayWidth * 3), tableY, dayWidth, 'center');
+
+                        tableY += 8;
+                    });
+
+                    yPosition = tableY;
+                }
+
+                yPosition = drawLine(yPosition + 10);
+
+                // 5. PRODUCTOS MÁS VENDIDOS (Top 10)
+                pdf.setFontSize(16);
+                pdf.setTextColor(76, 81, 191);
+                yPosition = addText('PRODUCTOS MÁS VENDIDOS', margin, yPosition + sectionSpacing);
+
+                // Ordenar productos por cantidad descendente
+                const sortedProducts = Object.values(stats.topProducts)
+                    .sort((a, b) => b.quantity - a.quantity)
+                    .slice(0, 10);
+
+                if (sortedProducts.length > 0) {
+                    const prodWidth = (pageWidth - (margin * 2)) / 4;
+                    let prodX = margin;
+
+                    // Encabezados
+                    addTableCell('PRODUCTO', prodX, yPosition + 10, prodWidth * 2, 'center', true);
+                    addTableCell('CANTIDAD', prodX + (prodWidth * 2), yPosition + 10, prodWidth, 'center', true);
+                    addTableCell('INGRESOS', prodX + (prodWidth * 3), yPosition + 10, prodWidth, 'center', true);
+
+                    let prodY = yPosition + 20;
+
+                    // Filas de datos
+                    sortedProducts.forEach((product, index) => {
+                        if (prodY > pdf.internal.pageSize.getHeight() - margin) {
+                            pdf.addPage();
+                            prodY = margin + 20;
+                        }
+
+                        // Truncar nombre largo
+                        const productName = product.name.length > 30 ? 
+                            product.name.substring(0, 30) + '...' : product.name;
+
+                        addTableCell(`${index + 1}. ${productName}`, prodX, prodY, prodWidth * 2, 'left');
+                        addTableCell(product.quantity.toString(), prodX + (prodWidth * 2), prodY, prodWidth, 'center');
+                        addTableCell(formatPrice(product.revenue), prodX + (prodWidth * 3), prodY, prodWidth, 'center');
+
+                        prodY += 8;
+                    });
+
+                    yPosition = prodY;
+                }
+
+                yPosition = drawLine(yPosition + 10);
+
+                // 6. DETALLE DE VENTAS (simplificado)
+                pdf.setFontSize(16);
+                pdf.setTextColor(76, 81, 191);
+                yPosition = addText('DETALLE DE VENTAS', margin, yPosition + sectionSpacing);
+
+                pdf.setFontSize(10);
+                pdf.setTextColor(100, 100, 100);
+                yPosition = addText(`Total de ventas en el período: ${filteredSales.length}`, margin, yPosition + 5);
+
+                // Tabla simplificada de ventas
+                const saleWidth = (pageWidth - (margin * 2)) / 6;
+                let saleX = margin;
+
+                // Encabezados (solo en primera página)
+                addTableCell('ID', saleX, yPosition + 10, saleWidth, 'center', true);
+                addTableCell('FECHA', saleX + saleWidth, yPosition + 10, saleWidth, 'center', true);
+                addTableCell('USUARIO', saleX + (saleWidth * 2), yPosition + 10, saleWidth, 'center', true);
+                addTableCell('PRODUCTOS', saleX + (saleWidth * 3), yPosition + 10, saleWidth, 'center', true);
+                addTableCell('ITEMS', saleX + (saleWidth * 4), yPosition + 10, saleWidth, 'center', true);
+                addTableCell('TOTAL', saleX + (saleWidth * 5), yPosition + 10, saleWidth, 'center', true);
+
+                let saleY = yPosition + 20;
+
+                // Filas de ventas (mostrar solo las primeras 50 para no saturar)
+                const salesToShow = filteredSales.slice(0, 50);
+                salesToShow.forEach(sale => {
+                    if (saleY > pdf.internal.pageSize.getHeight() - margin) {
+                        pdf.addPage();
+                        saleY = margin + 20;
+
+                        // Redibujar encabezados en nueva página
+                        addTableCell('ID', saleX, saleY - 10, saleWidth, 'center', true);
+                        addTableCell('FECHA', saleX + saleWidth, saleY - 10, saleWidth, 'center', true);
+                        addTableCell('USUARIO', saleX + (saleWidth * 2), saleY - 10, saleWidth, 'center', true);
+                        addTableCell('PRODUCTOS', saleX + (saleWidth * 3), saleY - 10, saleWidth, 'center', true);
+                        addTableCell('ITEMS', saleX + (saleWidth * 4), saleY - 10, saleWidth, 'center', true);
+                        addTableCell('TOTAL', saleX + (saleWidth * 5), saleY - 10, saleWidth, 'center', true);
+                    }
+
+                    const totalItems = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+                    const uniqueProducts = new Set(sale.items.map(item => item.name)).size;
+
+                    // Truncar usuario si es muy largo
+                    const userDisplay = sale.user.length > 10 ? 
+                        sale.user.substring(0, 10) + '...' : sale.user;
+
+                    addTableCell(sale.id, saleX, saleY, saleWidth, 'center');
+                    addTableCell(sale.date, saleX + saleWidth, saleY, saleWidth, 'center');
+                    addTableCell(userDisplay, saleX + (saleWidth * 2), saleY, saleWidth, 'center');
+                    addTableCell(uniqueProducts.toString(), saleX + (saleWidth * 3), saleY, saleWidth, 'center');
+                    addTableCell(totalItems.toString(), saleX + (saleWidth * 4), saleY, saleWidth, 'center');
+                    addTableCell(formatPrice(sale.total), saleX + (saleWidth * 5), saleY, saleWidth, 'center');
+
+                    saleY += 8;
+                });
+
+                // Nota si hay más ventas
+                if (filteredSales.length > 50) {
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(150, 150, 150);
+                    yPosition = addText(`Nota: Se muestran 50 de ${filteredSales.length} ventas. Para ver el detalle completo, exporte a Excel.`, 
+                                      margin, saleY + 10);
+                }
+
+                // 7. PIE DE PÁGINA
+                const footerY = pdf.internal.pageSize.getHeight() - margin;
+                pdf.setFontSize(10);
+                pdf.setTextColor(100, 100, 100);
+
+                // Línea separadora
+                pdf.setDrawColor(200, 200, 200);
+                pdf.setLineWidth(0.5);
+                pdf.line(margin, footerY - 20, pageWidth - margin, footerY - 20);
+
+                // Texto del pie
+                pdf.text(`Página ${pdf.internal.getNumberOfPages()}`, margin, footerY - 10);
+                pdf.text('Reporte generado por PetShop POS System', pageWidth - margin, footerY - 10, { align: 'right' });
+                pdf.text(`© ${new Date().getFullYear()} - Todos los derechos reservados`, pageWidth / 2, footerY - 5, { align: 'center' });
+
+                // 8. GUARDAR PDF
+                const startStr = startDate.toISOString().split('T')[0];
+                const endStr = endDate.toISOString().split('T')[0];
+                const fileName = `reporte_ventas_${startStr}_${endStr}.pdf`;
+
+                pdf.save(fileName);
+
+                showReportsFormStatusMessage('Reporte exportado a PDF correctamente', 'success');
+            }
+        }
+
+        // Función para formatear fecha para PDF
+        function formatDateForDisplay(date) {
+            if (!(date instanceof Date)) {
+                date = new Date(date);
+            }
+            
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0');
+            const year = date.getFullYear();
+            
+            return `${day}/${month}/${year}`;
+        }
+
+        // Función auxiliar para generar el PDF
+        function generatePDF(element, startDate, endDate) {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Configuración
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const margin = 15;
+
+            // Usar html2canvas para convertir el elemento a imagen
+            html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const imgWidth = pageWidth - (margin * 2);
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                let heightLeft = imgHeight;
+                let position = margin;
+                let page = 1;
+
+                pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                // Agregar páginas adicionales si es necesario
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', margin, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                    page++;
+                }
+
+                // Generar nombre de archivo
+                const startStr = startDate.toISOString().split('T')[0];
+                const endStr = endDate.toISOString().split('T')[0];
+                const fileName = `reporte_ventas_${startStr}_${endStr}.pdf`;
+
+                // Descargar PDF
+                pdf.save(fileName);
+
+                showReportsFormStatusMessage('Reporte exportado a PDF correctamente', 'success');
+            }).catch(error => {
+                console.error('Error generando PDF:', error);
+                showReportsFormStatusMessage('Error al exportar a PDF: ' + error.message, 'error');
+            });
+        }
+
+
         // Function to toggle edit mode
         function toggleEditMode() {
             const enteredPassword = prompt('Introduce la clave de administrador para activar/desactivar el modo edición:');
@@ -1275,6 +2110,17 @@
                         excelControls.classList.add('hidden-edit-button');
                     }
                 }
+
+                // Toggle visibility of reports button
+                const reportsBtn = document.getElementById('open-reports-modal-btn');
+                if (reportsBtn) {
+                    if (editModeActive) {
+                        reportsBtn.classList.remove('hidden-edit-button');
+                    } else {
+                        reportsBtn.classList.add('hidden-edit-button');
+                    }
+                }
+
 
                 showStatusMessage(editModeActive ? 'Modo edición ACTIVADO' : 'Modo edición DESACTIVADO', 'info');
             } else if (enteredPassword !== null) {
@@ -1850,6 +2696,35 @@
                 }
             });
 
+            // Event listeners for Reports Modal
+            openReportsModalBtn.addEventListener('click', openReportsModal);
+            closeReportsModalBtn.addEventListener('click', closeReportsModal);
+            reportsModal.addEventListener('click', (e) => {
+                if (e.target === reportsModal) {
+                    closeReportsModal();
+                }
+            });
+
+            // Event listener for Reports Form submission
+            reportsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                const startDate = new Date(startDateInput.value);
+                const endDate = new Date(endDateInput.value);
+                const chartType = reportTypeSelect.value;
+
+                if (startDate > endDate) {
+                    showReportsFormStatusMessage('La fecha de inicio no puede ser mayor a la fecha de fin.', 'error');
+                    return;
+                }
+
+                generateSalesReport(startDate, endDate, chartType);
+            });
+
+            // Event listener for Export Report button
+            exportReportBtn.addEventListener('click', exportReportToExcel);
+
+
             nextPageBtn.addEventListener('click', () => {
                 const totalPages = Math.ceil(products.filter(p => p.stock > 0 /*&& (currentCategory === 'all' || p.category === currentCategory)*/ && p.name.toLowerCase().includes(searchInput.value.toLowerCase())).length / productsPerPage); // Category filter removed
                 if (currentPage < totalPages) {
@@ -1858,56 +2733,68 @@
                 }
             });
 
-            // Agregar botón para importar usuarios
-            const excelControls = document.querySelector('.excel-controls');
-            if (excelControls) {
-                const importUsersBtn = document.createElement('button');
-                importUsersBtn.type = 'button';
-                importUsersBtn.className = 'excel-btn export-btn';
-                importUsersBtn.innerHTML = '<i class="fas fa-users"></i> Importar Usuarios';
+            // Event listener para Exportar a PDF
+            exportPdfBtn.addEventListener('click', exportReportToPDF);
+
+
+            // Event listener para Importar Usuarios (botón del panel de controles)
+            const importUsersBtn = document.getElementById('import-users-btn');
+            if (importUsersBtn) {
                 importUsersBtn.addEventListener('click', () => {
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = '.xlsx, .xls, .csv';
+                    
                     input.addEventListener('change', async (e) => {
                         const file = e.target.files[0];
                         if (!file) return;
-
-                        const validExtensions = ['.xlsx', '.xls', '.csv'];
+                    
+                        const validExtensions = ['.xlsx', '.xls, .csv'];
                         const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                        
                         if (!validExtensions.includes(fileExtension)) {
                             showStatusMessage('Formato de archivo no válido. Usa .xlsx, .xls o .csv', 'error');
                             return;
                         }
-
+                    
                         try {
                             showStatusMessage('Procesando archivo Excel de usuarios...', 'info');
                             const { sheetName, data: excelData } = await readExcelFile(file);
+                            
                             if (sheetName === EXCEL_CONFIG_USERS.sheetName) {
                                 const requiredHeaders = Object.values(EXCEL_CONFIG_USERS.mappings);
                                 const actualHeaders = Object.keys(excelData[0] || {});
                                 const missingHeaders = requiredHeaders.filter(header => !actualHeaders.includes(header));
+                                
                                 if (missingHeaders.length > 0) {
                                     throw new Error(`El archivo debe contener las columnas: ${missingHeaders.join(', ')}.`);
                                 }
+                                
                                 const importedUsers = processExcelUsersData(excelData);
+                                
                                 if (importedUsers.length > 0) {
                                     users.push(...importedUsers);
                                     showStatusMessage(`Usuarios importados: ${importedUsers.length}. Total: ${users.length}`, 'success');
                                     saveUsersToLocalStorage();
+                                    
+                                    // Si el usuario actual está importando, actualizar display
+                                    if (currentUser) {
+                                        updateUserDisplay();
+                                    }
                                 } else {
-                                    showStatusMessage('No se importaron nuevos usuarios.', 'info');
+                                    showStatusMessage('No se importaron nuevos usuarios del archivo.', 'info');
                                 }
                             } else {
-                                throw new Error(`La hoja debe ser '${EXCEL_CONFIG_USERS.sheetName}'.`);
+                                throw new Error(`La hoja debe llamarse '${EXCEL_CONFIG_USERS.sheetName}'. Se encontró: '${sheetName}'`);
                             }
                         } catch (error) {
                             showStatusMessage(`Error al importar usuarios: ${error.message}`, 'error');
+                            console.error('Error en importación de usuarios:', error);
                         }
                     });
+                    
                     input.click();
                 });
-                excelControls.appendChild(importUsersBtn);
             }
         }
 
