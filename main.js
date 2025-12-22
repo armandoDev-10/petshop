@@ -1340,15 +1340,16 @@
             const loginModal = document.getElementById('login-modal');
             if (loginModal) {
                 loginModal.classList.add('login-modal-visible');
-            }
-            // Enfocar el campo de código
-            setTimeout(() => {
+                // Enfocar el campo de código inmediatamente
                 const loginCodeInput = document.getElementById('login-code');
                 if (loginCodeInput) {
-                    loginCodeInput.focus();
+                    setTimeout(() => {
+                        loginCodeInput.focus();
+                    }, 50);
                 }
-            }, 100);
+            }
         }
+
 
         // Función para ocultar modal de login
         function hideLoginModal() {
@@ -1431,6 +1432,18 @@
                 localStorage.removeItem('petshop_session');
                 clearTimeout(sessionTimer);
 
+                // Limpiar el formulario de login
+                const loginForm = document.getElementById('login-form');
+                if (loginForm) {
+                    loginForm.reset();
+                }
+
+                // Limpiar mensaje de estado de login
+                const loginStatusElement = document.getElementById('login-status-message');
+                if (loginStatusElement) {
+                    loginStatusElement.innerHTML = '';
+                }
+
                 // Ocultar contenido principal
                 const mainContent = document.querySelector('.main-content');
                 if (mainContent) {
@@ -1441,12 +1454,6 @@
                 const footer = document.querySelector('footer');
                 if (footer) {
                     footer.style.display = 'none';
-                }
-
-                // Limpiar el formulario de login
-                const loginForm = document.getElementById('login-form');
-                if (loginForm) {
-                    loginForm.reset();
                 }
 
                 // Mostrar modal de login
@@ -1462,6 +1469,7 @@
                 }
             }
         }
+
 
 
 
@@ -1492,26 +1500,26 @@
         // Función para inicializar el sistema de login
         function initLoginSystem() {
             // VERIFICAR PRIMERO SI HAY SESIÓN ACTIVA
-            if (checkExistingSession()) {
-                // Si hay sesión activa, NO ocultar contenido
-                return;
+            const hasSession = checkExistingSession();
+
+            if (!hasSession) {
+                // Solo ocultar contenido si NO hay sesión activa
+                const mainContent = document.querySelector('.main-content');
+                const footer = document.querySelector('footer');
+            
+                if (mainContent) {
+                    mainContent.style.display = 'none';
+                }
+                if (footer) {
+                    footer.style.display = 'none';
+                }
+            
+                // Mostrar modal de login
+                setTimeout(() => {
+                    showLoginModal();
+                }, 100);
             }
 
-            // Solo ocultar contenido si NO hay sesión activa
-            const mainContent = document.querySelector('.main-content');
-            const footer = document.querySelector('footer');
-        
-            if (mainContent) {
-                mainContent.style.display = 'none';
-            }
-            if (footer) {
-                footer.style.display = 'none';
-            }
-        
-            // Mostrar modal de login
-            setTimeout(() => {
-                showLoginModal();
-            }, 100);
         
             // Configurar event listeners para login
             const loginForm = document.getElementById('login-form');
@@ -2024,14 +2032,15 @@
         function initApp() {
             // Primero actualizar fecha y hora
             updateDateTime();
-                
+
             // Cargar datos iniciales
             loadInitialData();
-                
+
             // Primero verificar si hay sesión activa
             if (checkExistingSession()) {
                 // Si hay sesión activa, NO mostrar modal de login
                 // La interfaz ya se mostrará en checkExistingSession()
+                initLoginSystem();
             } else {
                 // Solo inicializar sistema de login si NO hay sesión activa
                 initLoginSystem();
