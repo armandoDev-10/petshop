@@ -1289,7 +1289,7 @@
         // Función para verificar sesión existente
         function checkExistingSession() {
             const sessionData = localStorage.getItem('petshop_session');
-        
+                
             if (sessionData) {
                 try {
                     const session = JSON.parse(sessionData);
@@ -1304,10 +1304,21 @@
                             startSessionTimer();
                             hideLoginModal();
                             updateUserDisplay();
-
+                        
+                            // MOSTRAR INTERFAZ PRINCIPAL INMEDIATAMENTE
+                            const mainContent = document.querySelector('.main-content');
+                            const footer = document.querySelector('footer');
+                            
+                            if (mainContent) {
+                                mainContent.style.display = 'flex';
+                            }
+                            if (footer) {
+                                footer.style.display = 'flex';
+                            }
+                        
                             // Inicializar interfaz principal
                             initMainInterface();
-
+                        
                             return true;
                         }
                     } else {
@@ -1372,7 +1383,7 @@
         // Función para iniciar sesión
         function loginUser(userCode, rememberMe = false) {
             const user = users.find(u => u.code === userCode);
-        
+
             if (!user) {
                 showLoginStatusMessage('Código de usuario no válido', 'error');
                 return false;
@@ -1380,31 +1391,30 @@
         
             currentUser = user;
         
-            // Guardar sesión si el usuario seleccionó "recordar"
-            if (rememberMe) {
-                const sessionData = {
-                    userCode: user.code,
-                    expiresAt: new Date().getTime() + SESSION_TIMEOUT
-                };
-                localStorage.setItem('petshop_session', JSON.stringify(sessionData));
-                startSessionTimer();
-            }
+            // SEMPRE guardar sesión (no solo cuando se marca "recordar")
+            const sessionData = {
+                userCode: user.code,
+                expiresAt: new Date().getTime() + SESSION_TIMEOUT
+            };
+            localStorage.setItem('petshop_session', JSON.stringify(sessionData));
+
+            startSessionTimer();
         
             hideLoginModal();
             updateUserDisplay();
             showStatusMessage(`Bienvenido, ${user.name}!`, 'success');
-
+        
             // Mostrar contenido principal
             const mainContent = document.querySelector('.main-content');
             const footer = document.querySelector('footer');
-
+        
             if (mainContent) {
                 mainContent.style.display = 'flex';
             }
             if (footer) {
                 footer.style.display = 'flex';
             }
-
+        
             // Inicializar interfaz principal
             initMainInterface();
         
@@ -1481,25 +1491,27 @@
 
         // Función para inicializar el sistema de login
         function initLoginSystem() {
-            // Ocultar contenido principal inicialmente
+            // VERIFICAR PRIMERO SI HAY SESIÓN ACTIVA
+            if (checkExistingSession()) {
+                // Si hay sesión activa, NO ocultar contenido
+                return;
+            }
+
+            // Solo ocultar contenido si NO hay sesión activa
             const mainContent = document.querySelector('.main-content');
             const footer = document.querySelector('footer');
-
+        
             if (mainContent) {
                 mainContent.style.display = 'none';
             }
             if (footer) {
                 footer.style.display = 'none';
             }
-
-            // Verificar si hay una sesión activa
-            if (!checkExistingSession()) {
-                // Mostrar modal de login
-                setTimeout(() => {
-                    showLoginModal();
-                }, 100);
-            }
-            // Si hay sesión, checkExistingSession() ya llamará a initMainInterface()
+        
+            // Mostrar modal de login
+            setTimeout(() => {
+                showLoginModal();
+            }, 100);
         
             // Configurar event listeners para login
             const loginForm = document.getElementById('login-form');
@@ -1533,7 +1545,7 @@
                     }
                 });
             });
-        }
+        }       
 
 
 
@@ -2012,16 +2024,20 @@
         function initApp() {
             // Primero actualizar fecha y hora
             updateDateTime();
-
+                
             // Cargar datos iniciales
             loadInitialData();
-
-            // Inicializar sistema de login
-            initLoginSystem();
-
-            // NO renderizar nada más hasta que el usuario inicie sesión
-            // Las funciones renderProducts(), updateCart(), etc. se llamarán después del login
+                
+            // Primero verificar si hay sesión activa
+            if (checkExistingSession()) {
+                // Si hay sesión activa, NO mostrar modal de login
+                // La interfaz ya se mostrará en checkExistingSession()
+            } else {
+                // Solo inicializar sistema de login si NO hay sesión activa
+                initLoginSystem();
+            }
         }
+
 
         // Función para inicializar la interfaz principal DESPUÉS del login
         function initMainInterface() {
@@ -2069,3 +2085,4 @@
 
         // Inicializar cuando el DOM esté cargado
         document.addEventListener('DOMContentLoaded', initApp);
+
