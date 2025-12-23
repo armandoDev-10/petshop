@@ -514,6 +514,185 @@
             margin-top: 20px;
         }
 
+        /* Estilos para el modal de llegadas */
+        #register-arrival-modal.modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #register-arrival-modal .modal-content {
+            background-color: white;
+            width: 90%;
+            max-width: 500px;
+            border-radius: 10px;
+            padding: 0;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        #register-arrival-modal .modal-header {
+            background: linear-gradient(135deg, var(--primary), #5C0000);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #register-arrival-modal .modal-header h3 {
+            margin: 0;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #register-arrival-modal .close-modal-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        #register-arrival-modal .close-modal-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        #register-arrival-modal .modal-body {
+            padding: 30px;
+        }
+
+        #register-arrival-modal .form-group {
+            margin-bottom: 20px;
+        }
+
+        #register-arrival-modal label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--dark);
+            font-size: 0.95rem;
+        }
+
+        #register-arrival-modal .form-control {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        #register-arrival-modal .form-control:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(139, 0, 0, 0.1);
+        }
+
+        #register-arrival-modal textarea.form-control {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        #register-arrival-modal .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+
+        #register-arrival-modal .btn {
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: all 0.3s;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        #register-arrival-modal .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+
+        #register-arrival-modal .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        #register-arrival-modal .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        #register-arrival-modal .btn-primary:hover {
+            background-color: #5C0000;
+        }
+
+        #arrival-form-status-message {
+            margin-top: 15px;
+        }
+
+        /* Estilo para el stock info en el modal */
+        .stock-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+
+        .stock-info p {
+            margin: 5px 0;
+            color: #495057;
+        }
+
+        /* Estilos para el select de productos en el modal de llegadas */
+        .select2-container {
+            width: 100% !important;
+        }
+
+        .select2-selection {
+            height: 38px !important;
+            border: 1px solid #ced4da !important;
+            border-radius: 4px !important;
+        }
+
+        /* Información de stock en el modal */
+        .stock-info {
+            background-color: #f8f9fa;
+            border-left: 4px solid #17a2b8;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .stock-info p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
         /* Estilos mejorados para el modal de reportes */
         .reports-modal-content {
             max-width: 90%;
@@ -1382,6 +1561,9 @@
                         <button type="button" class="excel-btn export-users-btn" id="export-users">
                             <i class="fas fa-users"></i> Exportar Usuarios
                         </button>
+                        <button type="button" class="excel-btn export-arrivals-btn" id="export-arrivals">
+                            <i class="fas fa-truck-loading"></i> Exportar llegadas
+                        </button>
                         <button type="button" id="import-users-btn" class="btn btn-secondary excel-btn" style="display: none;">
                             <i class="fas fa-upload"></i> Importar Usuarios
                         </button>
@@ -1398,6 +1580,9 @@
                     </button>
                     <button type="button" class="manage-products-btn hidden-edit-button" id="open-add-user-modal-btn">
                         <i class="fas fa-user-plus"></i> Agregar Usuario
+                    </button>
+                    <button type="button" id="open-arrival-modal-btn" class="excel-btn export-btn hidden-edit-button">
+                        <i class="fas fa-truck-loading"></i> Registrar Llegada
                     </button>
                     <button type="button" id="open-reports-modal-btn" class="excel-btn export-btn hidden-edit-button">
                         <i class="fas fa-chart-line"></i> Reportes
@@ -1607,6 +1792,49 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Modal para Registrar Llegada de Productos -->
+        <div id="register-arrival-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-truck-loading"></i> Registrar Llegada de Productos</h3>
+                    <button type="button" id="close-arrival-modal-btn" class="close-modal-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="arrival-form">
+                        <div class="form-group">
+                            <label for="arrival-product-select">Producto *</label>
+                            <select id="arrival-product-select" class="form-control" required>
+                                <option value="">Seleccionar producto...</option>
+                            </select>
+                        </div>
+                    
+                        <div class="form-group">
+                            <label for="arrival-quantity">Cantidad Llegada *</label>
+                            <input type="number" id="arrival-quantity" class="form-control" 
+                                   min="0.01" step="0.01" required placeholder="Ej: 10.00">
+                        </div>
+                    
+                        <div class="form-group">
+                            <label for="arrival-notes">Notas (Opcional)</label>
+                            <textarea id="arrival-notes" class="form-control" 
+                                      rows="3" placeholder="Proveedor, motivo, observaciones..."></textarea>
+                        </div>
+                    
+                        <div id="arrival-form-status-message"></div>
+                    
+                        <div class="modal-buttons">
+                            <button type="button" id="close-arrival-modal-btn-2" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-save"></i> Registrar Llegada
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
 
