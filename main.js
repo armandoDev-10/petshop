@@ -46,6 +46,25 @@
             }
         };
 
+        // Configuration for Arrivals Excel
+        const EXCEL_CONFIG_ARRIVALS = {
+            sheetName: 'Llegadas',
+            headers: ['ID Producto', 'Nombre Producto', 'Cantidad Llegada', 'Fecha Llegada', 'Notas', 'Stock Anterior', 'Nuevo Stock'],
+            mappings: {
+                productId: 'ID Producto',
+                productName: 'Nombre Producto',
+                quantity: 'Cantidad Llegada',
+                date: 'Fecha Llegada',
+                notes: 'Notas',
+                previousStock: 'Stock Anterior',
+                newStock: 'Nuevo Stock'
+            }
+        };
+
+        // En los arrays al inicio:
+        let arrivals = []; // New array to store product arrivals
+
+
 
 
         // Carrito de compras
@@ -150,6 +169,16 @@
 
         const exportPdfBtn = document.getElementById('export-pdf-btn');
 
+        // Elementos del modal de llegadas
+        const openArrivalModalBtn = document.getElementById('open-arrival-modal-btn');
+        const registerArrivalModal = document.getElementById('register-arrival-modal');
+        const closeArrivalModalBtn = document.getElementById('close-arrival-modal-btn');
+        const closeArrivalModalBtn2 = document.getElementById('close-arrival-modal-btn-2');
+        const arrivalForm = document.getElementById('arrival-form');
+        const arrivalProductSelect = document.getElementById('arrival-product-select');
+        const arrivalQuantityInput = document.getElementById('arrival-quantity');
+        const arrivalNotesInput = document.getElementById('arrival-notes');
+        const arrivalFormStatusMessage = document.getElementById('arrival-form-status-message');
 
 
         // Función para mostrar mensajes de estado
@@ -608,6 +637,119 @@
                 users = [];
                 saveUsersToLocalStorage();
                 showStatusMessage('Usuarios borrados exitosamente después de la exportación.', 'success');
+            }
+        }
+
+        
+
+        // Función para configurar controles de llegadas
+        function setupArrivalControls() {
+            const excelControls = document.querySelector('.excel-controls');
+            if (!excelControls) {
+                console.warn('No se encontró el contenedor excel-controls');
+                return;
+            }
+        
+            // Verificar si ya existen los botones
+            let arrivalBtn = document.getElementById('open-arrival-modal-btn');
+            let exportArrivalsBtn = document.getElementById('export-arrivals');
+        
+            // Si no existen, crearlos
+            if (!arrivalBtn) {
+                arrivalBtn = document.createElement('button');
+                arrivalBtn.id = 'open-arrival-modal-btn';
+                arrivalBtn.type = 'button';
+                arrivalBtn.className = 'excel-btn export-btn hidden-edit-button';
+                arrivalBtn.innerHTML = '<i class="fas fa-truck-loading"></i> Registrar Llegada';
+                arrivalBtn.title = 'Registrar llegada de productos al inventario';
+                excelControls.appendChild(arrivalBtn);
+            }
+        
+            if (!exportArrivalsBtn) {
+                exportArrivalsBtn = document.createElement('button');
+                exportArrivalsBtn.id = 'export-arrivals';
+                exportArrivalsBtn.type = 'button';
+                exportArrivalsBtn.className = 'excel-btn export-btn hidden-edit-button';
+                exportArrivalsBtn.innerHTML = '<i class="fas fa-file-export"></i> Exportar Llegadas';
+                exportArrivalsBtn.title = 'Exportar historial de llegadas';
+                excelControls.appendChild(exportArrivalsBtn);
+            }
+        
+            // Asignar event listeners CORREGIDO
+            arrivalBtn.addEventListener('click', openArrivalModal);
+            exportArrivalsBtn.addEventListener('click', exportArrivalsToExcel);
+        
+            console.log('Controles de llegadas configurados (ocultos por defecto)');
+        }
+
+        // Función para exportar llegadas a Excel
+        function exportArrivalsToExcel() {
+            if (arrivals.length === 0) {
+                showStatusMessage('No hay registros de llegadas para exportar.', 'error');
+                return;
+            }
+        
+            // Preparar datos para exportación
+            const exportData = arrivals.map(arrival => ({
+                'ID Producto': arrival.productId,
+                'Nombre Producto': arrival.productName,
+                'Cantidad Llegada': arrival.quantity,
+                'Fecha Llegada': arrival.date,
+                'Notas': arrival.notes || '',
+                'Stock Anterior': arrival.previousStock,
+                'Nuevo Stock': arrival.newStock
+            }));
+        
+            // Crear hoja de trabajo
+            const ws = XLSX.utils.json_to_sheet(exportData);
+        
+            // Ajustar ancho de columnas
+            const wscols = [
+                {wch: 12},  // ID Producto
+                {wch: 30},  // Nombre Producto
+                {wch: 15},  // Cantidad Llegada
+                {wch: 20},  // Fecha Llegada
+                {wch: 25},  // Notas
+                {wch: 15},  // Stock Anterior
+                {wch: 15}   // Nuevo Stock
+            ];
+            ws['!cols'] = wscols;
+        
+            // Crear libro de trabajo
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, EXCEL_CONFIG_ARRIVALS.sheetName);
+        
+            // Generar nombre de archivo con fecha
+            const date = new Date();
+            const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+            const fileName = `llegadas_petshop_${dateStr}.xlsx`;
+        
+            // Descargar archivo
+            XLSX.writeFile(wb, fileName);
+        
+            showStatusMessage(`Llegadas exportadas: ${arrivals.length} registros`, 'success');
+        
+            // Opcional: preguntar si borrar después de exportar
+            if (confirm('¿Deseas borrar el historial de llegadas después de exportar? Esta acción es irreversible.')) {
+                arrivals = [];
+                saveArrivalsToLocalStorage();
+                showStatusMessage('Historial de llegadas borrado', 'info');
+            }
+        }
+
+        // Función para limpiar event listeners duplicados
+        function cleanupDuplicateEventListeners() {
+            // Limpiar event listeners del formulario de llegadas
+            if (arrivalForm) {
+                const newForm = arrivalForm.cloneNode(true);
+                arrivalForm.parentNode.replaceChild(newForm, arrivalForm);
+
+                // Actualizar referencia
+                arrivalForm = document.getElementById('arrival-form');
+                arrivalProductSelect = document.getElementById('arrival-product-select');
+                arrivalQuantityInput = document.getElementById('arrival-quantity');
+                arrivalNotesInput = document.getElementById('arrival-notes');
+                arrivalFormStatusMessage = document.getElementById('arrival-form-status-message');
             }
         }
 
@@ -1209,6 +1351,14 @@
         function openAddProductModal() {
             addProductForm.reset();
             addProductFormStatusMessage.innerHTML = '';
+
+            // configurar para decimales
+            addProductPriceInput.type = 'number';
+            addProductPriceInput.step = '0.01';
+            addProductStockInput.type = 'number';
+            addProductStockInput.step = '0.01';
+            addProductStockInput.min = '0';
+
             addProductModal.style.display = 'flex';
         }
 
@@ -2103,6 +2253,30 @@
                     }
                 }
 
+                // Toggle visibility of arrival button (both in product management section and excel controls)
+                const openArrivalModalBtn = document.getElementById('open-arrival-modal-btn');
+                const excelControlsArrivalBtn = document.querySelector('.excel-controls #open-arrival-modal-btn');
+                const exportArrivalsBtn = document.getElementById('export-arrivals');
+
+                [openArrivalModalBtn, excelControlsArrivalBtn].forEach(btn => {
+                    if (btn) {
+                        if (editModeActive) {
+                            btn.classList.remove('hidden-edit-button');
+                        } else {
+                            btn.classList.add('hidden-edit-button');
+                        }
+                    }
+                });
+            
+                if (exportArrivalsBtn) {
+                    if (editModeActive) {
+                        exportArrivalsBtn.classList.remove('hidden-edit-button');
+                    } else {
+                        exportArrivalsBtn.classList.add('hidden-edit-button');
+                    }
+                }
+                
+                // Toggle visibility of excel controls
                 if (excelControls) {
                     if (editModeActive) {
                         excelControls.classList.remove('hidden-edit-button');
@@ -2224,6 +2398,247 @@
                 }
             } else {
                 userInfoDisplay.style.display = 'none';
+            }
+        }
+
+        // Función para mostrar mensajes en el formulario de llegada
+        function showArrivalFormStatusMessage(message, type = 'info') {
+            arrivalFormStatusMessage.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+        
+            if (type === 'success' || type === 'info') {
+                setTimeout(() => {
+                    arrivalFormStatusMessage.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        // Función para abrir el modal de llegadas (corregida)
+        function openArrivalModal() {
+            // Verificar que el modal exista
+            const modal = document.getElementById('register-arrival-modal');
+            if (!modal) {
+                console.error('Modal de llegadas no encontrado en el DOM');
+                showStatusMessage('Error: Modal de llegadas no disponible', 'error');
+                return;
+            }
+
+            // Verificar modo edición
+            if (!editModeActive) {
+                showStatusMessage('El modo edición debe estar activo para registrar llegadas', 'error');
+                return;
+            }
+
+            // Limpiar formulario
+            if (arrivalForm) arrivalForm.reset();
+            if (arrivalFormStatusMessage) arrivalFormStatusMessage.innerHTML = '';
+
+            // Cargar productos en el select
+            populateArrivalProductSelect();
+
+            //configurar input para decimales
+            arrivalQuantityInput.type = 'number';
+            arrivalQuantityInput.step = '0.01';
+            arrivalQuantityInput.min = '0.01';
+
+            // Mostrar modal
+            modal.style.display = 'flex';
+
+            // Poner foco en el select
+            setTimeout(() => {
+                if (arrivalProductSelect) {
+                    arrivalProductSelect.focus();
+
+                    // Si Select2 está activo, abrir el dropdown
+                    if (window.$ && $(arrivalProductSelect).hasClass('select2-hidden-accessible')) {
+                        $(arrivalProductSelect).select2('open');
+                    }
+                }
+            }, 300);
+
+            console.log('Modal de llegadas abierto');
+        }
+
+        // Función para cerrar el modal de llegadas
+        function closeArrivalModal() {
+            registerArrivalModal.style.display = 'none';
+        }
+
+        // Función para poblar el select de productos (corregida)
+        function populateArrivalProductSelect() {
+            if (!arrivalProductSelect) {
+                console.error('Elemento arrivalProductSelect no encontrado');
+                return;
+            }
+
+            // Guardar selección actual
+            const currentSelection = arrivalProductSelect.value;
+
+            // Limpiar opciones
+            arrivalProductSelect.innerHTML = '<option value="">Seleccionar producto...</option>';
+
+            // Verificar que haya productos
+            if (!products || products.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No hay productos disponibles';
+                option.disabled = true;
+                arrivalProductSelect.appendChild(option);
+                console.warn('No hay productos para mostrar en el select');
+                return;
+            }
+
+            // Ordenar productos por nombre
+            const sortedProducts = [...products].sort((a, b) => a.name.localeCompare(b.name));
+
+            // Agregar productos al select
+            sortedProducts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.id;
+                option.textContent = `${product.name} (ID: ${product.id}, Stock: ${product.stock})`;
+                option.setAttribute('data-stock', product.stock);
+                arrivalProductSelect.appendChild(option);
+            });
+
+            // Restaurar selección anterior si existe
+            if (currentSelection) {
+                arrivalProductSelect.value = currentSelection;
+            }
+
+            console.log(`Select poblado con ${sortedProducts.length} productos`);
+
+            // Inicializar Select2 si está disponible
+            if (window.$ && $.fn && $.fn.select2) {
+                try {
+                    // Destruir Select2 anterior si existe
+                    if ($(arrivalProductSelect).hasClass('select2-hidden-accessible')) {
+                        $(arrivalProductSelect).select2('destroy');
+                    }
+
+                    // Inicializar Select2
+                    $(arrivalProductSelect).select2({
+                        placeholder: "Buscar producto...",
+                        allowClear: false,
+                        width: '100%',
+                        dropdownParent: $('#register-arrival-modal')
+                    });
+
+                    console.log('Select2 inicializado correctamente');
+                } catch (error) {
+                    console.error('Error al inicializar Select2:', error);
+                }
+            }
+        }
+    
+        // Función para registrar llegada desde el formulario (VERSIÓN SIMPLIFICADA)
+        function registerArrivalFromForm() {
+            console.log('=== INICIANDO registerArrivalFromForm ===');
+        
+            // Obtener datos del formulario
+            const productId = parseInt(arrivalProductSelect.value);
+            const quantity = parseFloat(arrivalQuantityInput.value);
+            const notes = arrivalNotesInput.value.trim();
+        
+            console.log('Datos del formulario:', { productId, quantity });
+        
+            // Validaciones básicas
+            if (!productId || isNaN(productId)) {
+                showArrivalFormStatusMessage('Selecciona un producto válido', 'error');
+                return false;
+            }
+        
+            if (isNaN(quantity) || quantity <= 0) {
+                showArrivalFormStatusMessage('La cantidad debe ser un número mayor a 0', 'error');
+                return false;
+            }
+        
+            // Buscar producto
+            const product = products.find(p => p.id === productId);
+            if (!product) {
+                showArrivalFormStatusMessage('Producto no encontrado', 'error');
+                return false;
+            }
+        
+            console.log('Producto encontrado:', product.name);
+            console.log('Stock anterior:', product.stock);
+        
+            // CALCULAR NUEVO STOCK CORRECTAMENTE
+            const previousStock = product.stock;
+            const newStock = previousStock + quantity; // Solo sumar una vez
+        
+            console.log('Nuevo stock calculado:', `${previousStock} + ${quantity} = ${newStock}`);
+        
+            // ACTUALIZAR PRODUCTO (SOLO UNA VEZ)
+            product.stock = newStock;
+            product.lastUpdateDate = new Date().toLocaleString();
+            product.previousStock = previousStock;
+        
+            console.log('Producto actualizado. Stock actual:', product.stock);
+        
+            // Crear registro de llegada
+            const newArrivalId = arrivals.length > 0 ? Math.max(...arrivals.map(a => a.id)) + 1 : 1;
+            const arrival = {
+                id: newArrivalId,
+                productId: productId,
+                productName: product.name,
+                quantity: quantity,
+                date: new Date().toLocaleString(),
+                notes: notes,
+                previousStock: previousStock,
+                newStock: newStock
+            };
+        
+            arrivals.push(arrival);
+            console.log('Llegada registrada con ID:', newArrivalId);
+        
+            // Guardar cambios
+            saveProductsToLocalStorage();
+            saveArrivalsToLocalStorage();
+        
+            // Mostrar mensaje de éxito
+            showArrivalFormStatusMessage(
+                `✅ Llegada registrada exitosamente<br>
+                 Producto: ${product.name}<br>
+                 Cantidad: ${quantity} unidades<br>
+                 Stock: ${previousStock} → ${newStock}`,
+                'success'
+            );
+        
+            // Actualizar interfaz
+            setTimeout(() => {
+                renderProducts();
+                updateCart();
+                closeArrivalModal();
+                showStatusMessage(`Stock actualizado: ${product.name}`, 'success');
+            }, 1500);
+        
+            // Prevenir envío múltiple
+            const submitBtn = arrivalForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                }, 2000);
+            }
+        
+            return false; // Prevenir submit normal
+        }
+
+        // Guardar llegadas en localStorage
+        function saveArrivalsToLocalStorage() {
+            localStorage.setItem('petshop_arrivals', JSON.stringify(arrivals));
+        }
+
+        // Cargar llegadas desde localStorage (agrega en loadInitialData)
+        function loadArrivalsFromStorage() {
+            const savedArrivals = localStorage.getItem('petshop_arrivals');
+            if (savedArrivals) {
+                try {
+                    arrivals = JSON.parse(savedArrivals);
+                    console.log(`Registros de llegadas cargados: ${arrivals.length}`);
+                } catch (error) {
+                    console.error('Error al cargar llegadas:', error);
+                    arrivals = [];
+                }
             }
         }
 
@@ -2543,7 +2958,7 @@
                 const name = addProductNameInput.value.trim();
                 const price = parseFloat(addProductPriceInput.value);
                 const category = addProductCategoryInput.value.trim().toLowerCase();
-                const stock = parseInt(addProductStockInput.value);
+                const stock = parseFloat(addProductStockInput.value);
                 // const icon = addProductIconInput.value.trim(); // Removed
 
                 if (!name || isNaN(price) || price <= 0 || !category || isNaN(stock) || stock < 0) {
@@ -2737,6 +3152,104 @@
             exportPdfBtn.addEventListener('click', exportReportToPDF);
 
 
+            // Event listeners para el modal de llegadas
+            const openArrivalModalBtn = document.getElementById('open-arrival-modal-btn');
+            if (openArrivalModalBtn) {
+                // Remover listeners anteriores y agregar uno nuevo
+                openArrivalModalBtn.replaceWith(openArrivalModalBtn.cloneNode(true));
+                document.getElementById('open-arrival-modal-btn').addEventListener('click', openArrivalModal);
+            }
+
+            if (closeArrivalModalBtn) {
+                closeArrivalModalBtn.addEventListener('click', closeArrivalModal);
+            }
+
+            if (closeArrivalModalBtn2) {
+                closeArrivalModalBtn2.addEventListener('click', closeArrivalModal);
+            }
+
+            if (registerArrivalModal) {
+                registerArrivalModal.addEventListener('click', (e) => {
+                    if (e.target === registerArrivalModal) {
+                        closeArrivalModal();
+                    }
+                });
+            }
+
+            // MANEJO DEL FORMULARIO DE LLEGADAS - SIN ELIMINAR FORMULARIO COMPLETO
+            if (arrivalForm) {
+                console.log('Configurando event listener para arrivalForm...');
+
+                // Variable local para prevenir múltiples envíos
+                let isFormProcessing = false;
+
+                // Función handler única
+                const arrivalFormSubmitHandler = function(e) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation(); // IMPORTANTE: Detener propagación
+
+                    console.log('=== SUBMIT ARRIVAL FORM ===');
+                    console.log('isFormProcessing:', isFormProcessing);
+
+                    if (isFormProcessing) {
+                        console.log('Formulario ya en proceso, ignorando...');
+                        return false;
+                    }
+
+                    isFormProcessing = true;
+                    console.log('Iniciando procesamiento de llegada...');
+
+                    // Deshabilitar botón de submit visualmente
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    const originalText = submitBtn ? submitBtn.innerHTML : '';
+
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Procesando...';
+                    }
+
+                    try {
+                        // Llamar a la función principal
+                        registerArrivalFromForm();
+                    } catch (error) {
+                        console.error('Error en submit handler:', error);
+                    } finally {
+                        // Reactivar después de 3 segundos
+                        setTimeout(() => {
+                            isFormProcessing = false;
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.innerHTML = originalText;
+                            }
+                            console.log('Formulario listo para nuevo envío');
+                        }, 3000);
+                    }
+
+                    return false;
+                };
+
+                // PRIMERO: Remover TODOS los listeners de submit existentes
+                // Esto es más seguro que clonar el formulario completo
+                arrivalForm.removeEventListener('submit', arrivalFormSubmitHandler);
+
+                // Usar capture phase y once:false para tener control total
+                arrivalForm.addEventListener('submit', arrivalFormSubmitHandler, {
+                    capture: true,
+                    once: false
+                });
+
+                console.log('Event listener configurado para arrivalForm (único)');
+            }
+
+            // Event listener para exportar llegadas
+            const exportArrivalsBtn = document.getElementById('export-arrivals');
+            if (exportArrivalsBtn) {
+                exportArrivalsBtn.addEventListener('click', exportArrivalsToExcel);
+            }
+
+            
+
+
             // Event listener para Importar Usuarios (botón del panel de controles)
             const importUsersBtn = document.getElementById('import-users-btn');
             if (importUsersBtn) {
@@ -2744,14 +3257,14 @@
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.accept = '.xlsx, .xls, .csv';
-                    
+
                     input.addEventListener('change', async (e) => {
                         const file = e.target.files[0];
                         if (!file) return;
                     
                         const validExtensions = ['.xlsx', '.xls, .csv'];
                         const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-                        
+
                         if (!validExtensions.includes(fileExtension)) {
                             showStatusMessage('Formato de archivo no válido. Usa .xlsx, .xls o .csv', 'error');
                             return;
@@ -2760,23 +3273,23 @@
                         try {
                             showStatusMessage('Procesando archivo Excel de usuarios...', 'info');
                             const { sheetName, data: excelData } = await readExcelFile(file);
-                            
+
                             if (sheetName === EXCEL_CONFIG_USERS.sheetName) {
                                 const requiredHeaders = Object.values(EXCEL_CONFIG_USERS.mappings);
                                 const actualHeaders = Object.keys(excelData[0] || {});
                                 const missingHeaders = requiredHeaders.filter(header => !actualHeaders.includes(header));
-                                
+
                                 if (missingHeaders.length > 0) {
                                     throw new Error(`El archivo debe contener las columnas: ${missingHeaders.join(', ')}.`);
                                 }
-                                
+
                                 const importedUsers = processExcelUsersData(excelData);
-                                
+
                                 if (importedUsers.length > 0) {
                                     users.push(...importedUsers);
                                     showStatusMessage(`Usuarios importados: ${importedUsers.length}. Total: ${users.length}`, 'success');
                                     saveUsersToLocalStorage();
-                                    
+
                                     // Si el usuario actual está importando, actualizar display
                                     if (currentUser) {
                                         updateUserDisplay();
@@ -2792,7 +3305,7 @@
                             console.error('Error en importación de usuarios:', error);
                         }
                     });
-                    
+
                     input.click();
                 });
             }
@@ -2858,6 +3371,9 @@
                 showStatusMessage('Usando datos de usuarios de ejemplo. Carga un archivo Excel para importar tus usuarios.', 'info');
             }
 
+            //cargar llegadas
+            loadArrivalsFromStorage();
+
             // Intentar importar usuarios desde Excel automáticamente
             fetch('usuarios.xlsx')
                 .then(response => {
@@ -2917,6 +3433,7 @@
 
         // Inicializar la aplicación
         function initApp() {
+
             // Primero actualizar fecha y hora
             updateDateTime();
 
@@ -2963,12 +3480,15 @@
             setInterval(saveProductsToLocalStorage, 30000);
             setInterval(saveSalesToLocalStorage, 30000);
             setInterval(saveUsersToLocalStorage, 30000);
+            setInterval(saveArrivalsToLocalStorage, 30000);
 
             // Guardar también al cerrar la página
             window.addEventListener('beforeunload', () => {
                 saveProductsToLocalStorage();
                 saveSalesToLocalStorage();
                 saveUsersToLocalStorage();
+
+                saveArrivalsToLocalStorage();
             });
 
             // Poner foco en la búsqueda
