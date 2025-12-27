@@ -188,6 +188,47 @@
         // variables para costo de llegadas
         const arrivalCostInput = document.getElementById('arrival-cost');
 
+        // Función para generar ID de código de barras de 12 dígitos
+        function generateBarcodeId() {
+            // Generar 11 dígitos aleatorios
+            let barcode = '';
+            for (let i = 0; i < 11; i++) {
+                barcode += Math.floor(Math.random() * 10);
+            }
+
+            // Calcular dígito de verificación (algoritmo UPC/EAN)
+            let sum = 0;
+            for (let i = 0; i < 11; i++) {
+                const digit = parseInt(barcode.charAt(i));
+                // Multiplicar por 3 las posiciones impares (comenzando desde 1)
+                sum += (i % 2 === 0) ? digit * 3 : digit;
+            }
+
+            const checkDigit = (10 - (sum % 10)) % 10;
+            return barcode + checkDigit;
+        }
+
+        // Función para generar ID único verificando que no exista
+        function generateUniqueBarcodeId(existingProducts) {
+            let newId;
+            let attempts = 0;
+            const maxAttempts = 100;
+
+            do {
+                newId = generateBarcodeId();
+                attempts++;
+                if (attempts > maxAttempts) {
+                    // Fallback: timestamp + random
+                    const timestamp = Date.now().toString().slice(-8);
+                    const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+                    newId = (timestamp + random).padStart(12, '0');
+                    break;
+                }
+            } while (existingProducts.some(p => p.id === newId));
+
+            return newId;
+        }
+
 
         // Función para mostrar mensajes de estado
         function showStatusMessage(message, type = 'info') {
@@ -243,7 +284,7 @@
             // Crear datos de ejemplo para la plantilla
             const templateData = [
                 {
-                    'ID': 1,
+                    'ID': generateBarcodeId(),
                     'Nombre': "Alimento para Perro Adulto",
                     'Precio': 450,
                     'Categoría': "food",
@@ -253,7 +294,7 @@
                     'Stock Previo': 15
                 },
                 {
-                    'ID': 2,
+                    'ID': generateBarcodeId(),
                     'Nombre': "Alimento para Gato Adulto",
                     'Precio': 380,
                     'Categoría': "food",
@@ -263,7 +304,7 @@
                     'Stock Previo': 12
                 },
                 {
-                    'ID': 3,
+                    'ID': generateBarcodeId(),
                     'Nombre': "Snacks para Perro",
                     'Precio': 120,
                     'Categoría': "food",
@@ -273,7 +314,7 @@
                     'Stock Previo': 25
                 },
                 {
-                    'ID': 4,
+                    'ID': generateBarcodeId(),
                     'Nombre': "Pelota para Mascota",
                     'Precio': 85,
                     'Categoría': "toys",
@@ -283,7 +324,7 @@
                     'Stock Previo': 30
                 },
                 {
-                    'ID': '',
+                    'ID': generateBarcodeId(),
                     'Nombre': '',
                     'Precio': '',
                     'Categoría': '',
@@ -293,6 +334,15 @@
                     'Stock Previo': ''
                 }
             ];
+
+            //asegurar que los ids sean unicos
+            const usedIds = new Set();
+            templateData.forEach(item => {
+                while (usedIds.has(row['ID'])) {
+                    row['ID'] = generateBarcodeId();
+                }
+                usedIds.add(row['ID']);
+            });
 
             // Crear hoja de trabajo
             const ws = XLSX.utils.json_to_sheet(templateData);
@@ -353,41 +403,50 @@
                 if (!row[EXCEL_CONFIG.mappings.id] && !row[EXCEL_CONFIG.mappings.name]) {
                     return;
                 }
-
+            
                 try {
-                    // Validar y procesar cada campo
-                    const id = parseInt(row[EXCEL_CONFIG.mappings.id]);
+                    // Generar ID automático de 12 dígitos si no viene en el Excel
+                    let id = row[EXCEL_CONFIG.mappings.id];
+
+                    if (!id || id.toString().trim() === '') {
+                        // Generar ID automático de 12 dígitos
+                        id = generateBarcodeId();
+                    } else {
+                        // Asegurar que sea string y tenga 12 dígitos
+                        id = String(id).padStart(12, '0').substring(0, 12);
+                    }
+
                     const name = String(row[EXCEL_CONFIG.mappings.name]).trim();
                     const price = parseFloat(row[EXCEL_CONFIG.mappings.price]);
                     const category = String(row[EXCEL_CONFIG.mappings.category]).trim().toLowerCase();
                     const stock = parseInt(row[EXCEL_CONFIG.mappings.stock]);
-                    // const icon = String(row[EXCEL_CONFIG.mappings.icon] || '').trim(); // Removed
-                    // const subcategory = String(row[EXCEL_CONFIG.mappings.subcategory] || '').trim().toLowerCase(); // Removed
-                    const creationDate = String(row[EXCEL_CONFIG.mappings.creationDate] || new Date().toLocaleString()); // Default to now if not provided
-                    const lastUpdateDate = String(row[EXCEL_CONFIG.mappings.lastUpdateDate] || new Date().toLocaleString()); // Default to now if not provided
-                    const previousStock = parseInt(row[EXCEL_CONFIG.mappings.previousStock] || 0); // New field: Previous Stock
-
+                    const creationDate = String(row[EXCEL_CONFIG.mappings.creationDate] || new Date().toLocaleString());
+                    const lastUpdateDate = String(row[EXCEL_CONFIG.mappings.lastUpdateDate] || new Date().toLocaleString());
+                    const previousStock = parseInt(row[EXCEL_CONFIG.mappings.previousStock] || 0);
+                
                     // Validaciones básicas
-                    if (isNaN(id) || id <= 0) {
-                        throw new Error(`ID inválido en fila ${index + 2}`);
-                    }
-
                     if (!name || name.length === 0) {
                         throw new Error(`Nombre vacío en fila ${index + 2}`);
                     }
-
+                
                     if (isNaN(price) || price <= 0) {
                         throw new Error(`Precio inválido en fila ${index + 2}`);
                     }
-
+                
                     if (!category || category.length === 0) {
                         throw new Error(`Categoría vacía en fila ${index + 2}`);
                     }
-
+                
                     if (isNaN(stock) || stock < 0) {
                         throw new Error(`Stock inválido en fila ${index + 2}`);
                     }
-
+                
+                    // Verificar si el ID ya existe
+                    if (products.some(p => p.id === id) || processedProducts.some(p => p.id === id)) {
+                        // Generar nuevo ID único
+                        id = generateUniqueBarcodeId(products.concat(processedProducts));
+                    }
+                
                     // Crear objeto producto
                     const product = {
                         id,
@@ -395,21 +454,19 @@
                         price,
                         category,
                         stock,
-                        // icon: icon || getDefaultImageUrlForCategory(category), // Removed
-                        // subcategory: subcategory,
-                        creationDate: creationDate,
-                        lastUpdateDate: lastUpdateDate,
-                        previousStock: previousStock // Added previousStock
+                        creationDate,
+                        lastUpdateDate,
+                        previousStock
                     };
-
+                
                     processedProducts.push(product);
-
+                
                 } catch (error) {
                     console.warn(`Error en fila ${index + 2}: ${error.message}`);
                     showStatusMessage(`Advertencia en fila ${index + 2}: ${error.message}`, 'error');
                 }
             });
-
+        
             return processedProducts;
         }
 
@@ -914,6 +971,7 @@
 
             productsToDisplay.forEach(product => {
                 const row = document.createElement('tr');
+                // En la función renderProducts, modifica la creación de la fila:
                 row.innerHTML = `
                     <td>
                         <div class="product-name-col">
@@ -924,11 +982,14 @@
                     <td><span class="product-stock">${product.stock} unidades</span></td>
                     <td>
                         <div class="action-buttons-cell">
-                            <button type="button" class="add-to-cart btn btn-sm btn-primary" data-id="${product.id}">
+                            <button type="button" class="add-to-cart btn btn-sm btn-primary" data-id="${product.id}" title="Agregar al carrito">
                                 <i class="fas fa-cart-plus"></i>
                             </button>
-                            <button type="button" class="action-btn edit-btn btn btn-sm btn-info ${editModeActive ? '' : 'hidden-edit-button'}" data-id="${product.id}">
+                            <button type="button" class="action-btn edit-btn btn btn-sm btn-info ${editModeActive ? '' : 'hidden-edit-button'}" data-id="${product.id}" title="Editar producto">
                                 <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="action-btn label-btn btn btn-sm btn-warning ${editModeActive ? '' : 'hidden-edit-button'}" data-id="${product.id}" title="Generar etiqueta">
+                                <i class="fas fa-tag"></i>
                             </button>
                         </div>
                     </td>
@@ -956,6 +1017,14 @@
                     openUpdateProductModal(productId);
                 });
             });
+
+            // Add event listeners for label buttons
+            document.querySelectorAll('.label-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const productId = parseInt(e.target.closest('.label-btn').dataset.id);
+                    openLabelSettingsModal(productId);
+                });
+            });
         }
 
         // Function to render pagination controls
@@ -968,7 +1037,7 @@
 
         // Función para agregar producto al carrito
         function addToCart(productId) {
-            const product = products.find(p => p.id === productId);
+            const product = products.find(p => p.id === productId.toString());
 
             if (!product) {
                 showStatusMessage('Producto no encontrado', 'error');
@@ -1331,6 +1400,263 @@
             doc.save(`${receiptId}.pdf`);
         }
 
+        // Función para generar y descargar PDF de etiqueta (50mm x 30mm)
+        function generateLabelPDF(product) {
+            console.log('Generando etiqueta para:', product.name);
+
+            const { jsPDF } = window.jspdf;
+
+            // Tamaño exacto para etiqueta: 50mm x 30mm
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: [50, 50]
+            });
+        
+            const pageWidth = 50;
+            const pageHeight = 30;
+            const margin = 2; // Margen de 2mm
+            const contentWidth = pageWidth - (margin * 2);
+
+            // Configurar fuente por defecto
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+        
+            // 1. NOMBRE DE LA TIENDA (parte superior)
+            doc.setFontSize(6);
+            doc.setTextColor(139, 0, 0); // Color guinda
+            doc.setFont(undefined, 'bold');
+            doc.text('PETSHOP', pageWidth / 2, margin + 2, { align: 'center' });
+
+            // 2. NOMBRE DEL PRODUCTO (ajustado automáticamente)
+            doc.setFontSize(7);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont(undefined, 'normal');
+
+            // Dividir nombre si es muy largo (máximo 2 líneas)
+            const productName = product.name;
+            const productLines = doc.splitTextToSize(productName, contentWidth - 4);
+
+            // Limitar a 2 líneas máximo
+            const displayLines = productLines.slice(0, 2);
+            let nameY = margin + 5;
+
+            displayLines.forEach((line, index) => {
+                doc.text(line, pageWidth / 2, nameY + (index * 3), { align: 'center' });
+            });
+
+            // Si el nombre fue truncado, agregar "..."
+            if (productLines.length > 2) {
+                doc.text('...', pageWidth / 2, nameY + 6, { align: 'center' });
+            }
+
+            // 3. CÓDIGO DE BARRAS (centrado)
+            try {
+                const canvas = document.createElement('canvas');
+
+                // Generar código EAN-13 (12 dígitos + dígito de control)
+                const barcodeNumber = '0' + product.id;
+
+                JsBarcode(canvas, barcodeNumber, {
+                    format: "EAN13",
+                    width: 1.2, // Ancho más delgado para 50mm
+                    height: 12,  // Altura ajustada
+                    displayValue: false, // Ocultar números debajo
+                    fontSize: 0,
+                    margin: 0
+                });
+            
+                const barcodeData = canvas.toDataURL('image/png');
+
+                // Tamaño del código de barras (optimizado para 50mm)
+                const barcodeWidth = 40;
+                const barcodeHeight = (canvas.height * barcodeWidth) / canvas.width;
+
+                // Posicionar centrado
+                const barcodeX = (pageWidth - barcodeWidth) / 2;
+                const barcodeY = nameY + (displayLines.length * 3) + 2;
+
+                doc.addImage(barcodeData, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight);
+
+                // Mostrar el ID debajo del código de barras
+                doc.setFontSize(5);
+                doc.setTextColor(100, 100, 100);
+                doc.text(product.id, pageWidth / 2, barcodeY + barcodeHeight + 1.5, { align: 'center' });
+
+            } catch (error) {
+                console.error('Error generando código de barras:', error);
+                // Fallback: mostrar ID como texto
+                doc.setFontSize(6);
+                doc.setTextColor(0, 0, 0);
+                doc.text(`ID: ${product.id}`, pageWidth / 2, nameY + 10, { align: 'center' });
+            }
+        
+            // 4. PRECIO (parte inferior derecha)
+            doc.setFontSize(9);
+            doc.setTextColor(139, 0, 0); // Color guinda
+            doc.setFont(undefined, 'bold');
+            const priceText = formatPrice(product.price);
+            doc.text(priceText, pageWidth - margin - 1, pageHeight - margin - 1, { align: 'right' });
+        
+            // 5. STOCK (parte inferior izquierda, opcional)
+            doc.setFontSize(5);
+            doc.setTextColor(100, 100, 100);
+            doc.setFont(undefined, 'normal');
+            doc.text(`STK: ${product.stock}`, margin + 1, pageHeight - margin - 1);
+        
+            // 6. LÍNEA DIVISORIA (opcional)
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.1);
+            doc.line(margin, pageHeight - 5, pageWidth - margin, pageHeight - 5);
+        
+            // 7. MARCO DE RECORTE (líneas punteadas para guía de corte)
+            doc.setDrawColor(150, 150, 150);
+            doc.setLineWidth(0.1);
+
+            // Línea punteada superior
+            drawDashedLine(doc, margin, margin, pageWidth - margin, margin);
+            // Línea punteada inferior
+            drawDashedLine(doc, margin, pageHeight - margin, pageWidth - margin, pageHeight - margin);
+            // Línea punteada izquierda
+            drawDashedLine(doc, margin, margin, margin, pageHeight - margin);
+            // Línea punteada derecha
+            drawDashedLine(doc, pageWidth - margin, margin, pageWidth - margin, pageHeight - margin);
+        
+            // Función auxiliar para línea punteada
+            function drawDashedLine(doc, x1, y1, x2, y2) {
+                const dashLength = 1;
+                const gapLength = 1;
+
+                if (x1 === x2) {
+                    // Línea vertical
+                    for (let y = y1; y < y2; y += dashLength + gapLength) {
+                        doc.line(x1, y, x1, Math.min(y + dashLength, y2));
+                    }
+                } else {
+                    // Línea horizontal
+                    for (let x = x1; x < x2; x += dashLength + gapLength) {
+                        doc.line(x, y1, Math.min(x + dashLength, x2), y1);
+                    }
+                }
+            }
+        
+            // Generar nombre de archivo seguro
+            const safeFileName = product.name
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
+                .replace(/[^\w\s]/gi, '')
+                .replace(/\s+/g, '_')
+                .substring(0, 25);
+
+            const fileName = `etiqueta_${safeFileName}.pdf`;
+        
+            // Descargar PDF
+            doc.save(fileName);
+
+            showStatusMessage(`Etiqueta generada: ${product.name}`, 'success');
+        }
+
+        // Función simplificada para abrir modal de etiqueta
+        function openLabelModal(productId) {
+            const product = products.find(p => p.id === productId.toString());
+
+            if (!product) {
+                showStatusMessage('Producto no encontrado', 'error');
+                return;
+            }
+        
+            // Modal simple de confirmación
+            const modalHTML = `
+                <div class="receipt-modal" style="display: flex;" id="label-confirm-modal">
+                    <div class="receipt-content" style="max-width: 400px;">
+                        <div class="receipt-header">
+                            <h2><i class="fas fa-tag"></i> Generar Etiqueta</h2>
+                        </div>
+                        <div class="receipt-details">
+                            <div class="receipt-item">
+                                <span><strong>Producto:</strong></span>
+                                <span>${product.name}</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span><strong>Precio:</strong></span>
+                                <span>${formatPrice(product.price)}</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span><strong>Código:</strong></span>
+                                <span>${product.id}</span>
+                            </div>
+                            <div class="receipt-item">
+                                <span><strong>Tamaño:</strong></span>
+                                <span>50mm × 30mm</span>
+                            </div>
+                        </div>
+                        <div class="modal-buttons">
+                            <button type="button" class="modal-btn btn btn-primary" id="confirm-label-btn">
+                                <i class="fas fa-print"></i> Generar Etiqueta
+                            </button>
+                            <button type="button" class="modal-btn btn btn-secondary" id="cancel-label-btn">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Remover modal anterior si existe
+            const existingModal = document.getElementById('label-confirm-modal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            // Agregar modal al DOM
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+            // Configurar event listeners
+            setTimeout(() => {
+                const confirmBtn = document.getElementById('confirm-label-btn');
+                const cancelBtn = document.getElementById('cancel-label-btn');
+                const modal = document.getElementById('label-confirm-modal');
+
+                confirmBtn.addEventListener('click', () => {
+                    generateLabelPDF(product);
+                    modal.remove();
+                });
+
+                cancelBtn.addEventListener('click', () => {
+                    modal.remove();
+                });
+
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.remove();
+                    }
+                });
+            }, 50);
+        }
+
+        // Función para abrir modal de configuración de etiqueta (opcional)
+        function openLabelSettingsModal(productId) {
+            const product = products.find(p => p.id === productId.toString());
+
+            if (!product) {
+                showStatusMessage('Producto no encontrado', 'error');
+                return;
+            }
+        
+            // Crear modal simple de confirmación
+            const confirmPrint = confirm(
+                `¿Generar etiqueta para:\n\n` +
+                `Producto: ${product.name}\n` +
+                `Precio: ${formatPrice(product.price)}\n` +
+                `Código: ${product.id}\n\n` +
+                `¿Continuar?`
+            );
+
+            if (confirmPrint) {
+                generateLabelPDF(product);
+            }
+        }
+
         // Función para imprimir recibo
         function printReceipt() {
             const printContent = document.querySelector('.receipt-content').innerHTML;
@@ -1376,7 +1702,7 @@
 
         // Function to open Update Product Modal
         function openUpdateProductModal(productId) {
-            const product = products.find(p => p.id === productId);
+            const product = products.find(p => p.id === productId.toString());
             if (!product) {
                 showStatusMessage('Producto no encontrado para actualizar', 'error');
                 return;
@@ -3933,7 +4259,9 @@
                 }
 
                 const now = new Date().toLocaleString();
-                const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+                
+                //generar ID único
+                const newId = generateUniqueBarcodeId(products);
 
                 const newProduct = {
                     id: newId,
@@ -4011,6 +4339,15 @@
                 else {
                     showUpdateProductFormStatusMessage('Error: Producto no encontrado para actualizar.', 'error');
                 }
+            });
+
+            // En la función initEventListeners, después de los listeners de edit:
+            // Add event listeners for label buttons
+            document.querySelectorAll('.label-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const productId = e.target.closest('.label-btn').dataset.id;
+                    openLabelSettingsModal(productId);
+                });
             });
 
             // Event listeners for Add User Modal
@@ -4372,15 +4709,26 @@
             // Si no hay productos cargados o guardados, cargar datos de ejemplo
             if (products.length === 0) {
                 products = [
-                    { id: 1, name: "Alimento para Perro Adulto", price: 450, category: "food", stock: 15, creationDate: now, lastUpdateDate: now, previousStock: 15 },
-                    { id: 2, name: "Alimento para Gato Adulto", price: 380, category: "food", stock: 12, creationDate: now, lastUpdateDate: now, previousStock: 12 },
-                    { id: 3, name: "Snacks para Perro", price: 120, category: "food", stock: 25, creationDate: now, lastUpdateDate: now, previousStock: 25 },
-                    { id: 4, name: "Pelota para Mascota", price: 85, category: "toys", stock: 30, creationDate: now, lastUpdateDate: now, previousStock: 30 },
-                    { id: 5, name: "Collar de Perro", price: 60, category: "accessories", stock: 10, creationDate: now, lastUpdateDate: now, previousStock: 10 },
-                    { id: 6, name: "Rascador para Gato", price: 200, category: "toys", stock: 5, creationDate: now, lastUpdateDate: now, previousStock: 5 },
-                    { id: 7, name: "Antipulgas", price: 150, category: "health", stock: 20, creationDate: now, lastUpdateDate: now, previousStock: 20 },
-                    { id: 8, name: "Arena para Gato", price: 90, category: "food", stock: 18, creationDate: now, lastUpdateDate: now, previousStock: 18 }
+                    { id: generateBarcodeId(), name: "Alimento para Perro Adulto", price: 450, category: "food", stock: 15, creationDate: now, lastUpdateDate: now, previousStock: 15 },
+                    { id: generateBarcodeId(), name: "Alimento para Gato Adulto", price: 380, category: "food", stock: 12, creationDate: now, lastUpdateDate: now, previousStock: 12 },
+                    { id: generateBarcodeId(), name: "Snacks para Perro", price: 120, category: "food", stock: 25, creationDate: now, lastUpdateDate: now, previousStock: 25 },
+                    { id: generateBarcodeId(), name: "Pelota para Mascota", price: 85, category: "toys", stock: 30, creationDate: now, lastUpdateDate: now, previousStock: 30 },
+                    { id: generateBarcodeId(), name: "Collar de Perro", price: 60, category: "accessories", stock: 10, creationDate: now, lastUpdateDate: now, previousStock: 10 },
+                    { id: generateBarcodeId(), name: "Rascador para Gato", price: 200, category: "toys", stock: 5, creationDate: now, lastUpdateDate: now, previousStock: 5 },
+                    { id: generateBarcodeId(), name: "Antipulgas", price: 150, category: "health", stock: 20, creationDate: now, lastUpdateDate: now, previousStock: 20 },
+                    { id: generateBarcodeId(), name: "Arena para Gato", price: 90, category: "food", stock: 18, creationDate: now, lastUpdateDate: now, previousStock: 18 }
                 ];
+
+                //asegurar que todos los ids sean unicos
+                const usedIds = new Set();
+                products = products.map(product => {
+                    let id = product.id;
+                    while (usedIds.has(id)) {
+                        id = generateBarcodeId();
+                    }
+                    usedIds.add(id);
+                    return { ...product, id };
+                });
 
                 showStatusMessage('Usando datos de ejemplo. Carga un archivo Excel para importar tus productos.', 'info');
             }
