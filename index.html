@@ -2,7 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- En el head de tu HTML -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+
     <title>Punto de Venta - Petshop con Excel</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Incluir SheetJS desde CDN -->
@@ -874,6 +878,236 @@
         #reports-form .modal-buttons button:last-child:hover {
             background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
         }
+
+        /* Estilos para el modal de reportes de inversión (coinciden con reportes de ventas) */
+        #investment-report-modal.modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        #investment-report-modal .reports-modal-content {
+            max-width: 90%;
+            width: 1400px;
+            max-height: 90vh;
+            background: linear-gradient(135deg, #76c7c0 0%, #4aa3a1 100%);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        #investment-report-modal .modal-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 25px 30px;
+        }
+
+        #investment-report-modal .modal-header h2 {
+            color: white;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #investment-report-modal .modal-header h2::before {
+            content: "💰";
+            font-size: 28px;
+        }
+
+        #investment-report-modal .close-modal-btn {
+            color: white;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 24px;
+            transition: all 0.3s ease;
+        }
+
+        #investment-report-modal .close-modal-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+
+        #investment-report-modal .modal-body {
+            padding: 30px;
+            background: #f8f9fa;
+            max-height: calc(90vh - 80px);
+            overflow-y: auto;
+        }
+
+        /* Estilos para el formulario de inversión */
+        #investment-form {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        #investment-form .form-group {
+            margin-bottom: 25px;
+        }
+
+        #investment-form label {
+            display: block;
+            margin-bottom: 10px;
+            color: #2d3748;
+            font-weight: 600;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        #investment-form input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+            color: #2d3748;
+        }
+
+        #investment-form input:focus {
+            outline: none;
+            border-color: #76c7c0;
+            box-shadow: 0 0 0 3px rgba(118, 199, 192, 0.1);
+            transform: translateY(-2px);
+        }
+
+        #investment-form input {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill="%2376c7c0" d="M19,4H18V2H16V4H8V2H6V4H5A2,2 0 0,0 3,6V20A2,2 0 0,0 5,22H19A2,2 0 0,0 21,20V6A2,2 0 0,0 19,4M19,20H5V10H19V20M19,8H5V6H19V8M12,12H17V14H12V12M12,16H17V18H12V16Z"/></svg>');
+            background-repeat: no-repeat;
+            background-position: right 20px center;
+            background-size: 24px;
+            padding-right: 60px;
+        }
+
+        #investment-form .modal-buttons {
+            display: flex;
+            gap: 15px;
+            margin-top: 30px;
+        }
+
+        #investment-form .modal-buttons button {
+            flex: 1;
+            padding: 18px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        #investment-form .modal-buttons button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        #investment-form .modal-buttons button:first-child {
+            background: linear-gradient(135deg, #4aa3a1 0%, #76c7c0 100%);
+            color: white;
+        }
+
+        #investment-form .modal-buttons button:first-child:hover {
+            background: linear-gradient(135deg, #3a8a88 0%, #66b7b0 100%);
+        }
+
+        #investment-form .modal-buttons button:last-child {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+        }
+
+        #investment-form .modal-buttons button:last-child:hover {
+            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+        }
+
+        /* Botón de exportar PDF para inversión */
+        #export-investment-pdf-btn {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            color: white;
+            border: none;
+            padding: 18px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #export-investment-pdf-btn:hover {
+            background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Mensajes de estado para inversión */
+        #investment-form-status-message {
+            margin-top: 20px;
+        }
+
+        #investment-form-status-message .status-message {
+            padding: 15px;
+            border-radius: 12px;
+            font-size: 14px;
+            border-left: 4px solid;
+        }
+
+        #investment-form-status-message .status-message.success {
+            background: #c6f6d5;
+            border-left-color: #48bb78;
+            color: #22543d;
+        }
+
+        #investment-form-status-message .status-message.error {
+            background: #fed7d7;
+            border-left-color: #e53e3e;
+            color: #742a2a;
+        }
+
+        #investment-form-status-message .status-message.info {
+            background: #bee3f8;
+            border-left-color: #4299e1;
+            color: #2a4365;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            #investment-report-modal .reports-modal-content {
+                width: 95%;
+                max-height: 95vh;
+            }
+
+            #investment-form .modal-buttons {
+                flex-direction: column;
+            }
+        }
         
         /* Estilos mejorados para los resultados del reporte */
         .stats-summary {
@@ -1587,7 +1821,9 @@
                     <button type="button" id="open-reports-modal-btn" class="excel-btn export-btn hidden-edit-button">
                         <i class="fas fa-chart-line"></i> Reportes
                     </button>
-
+                    <button type="button" id="open-investment-report-btn" class="excel-btn export-btn hidden-edit-button">
+                        <i class="fas fa-chart-pie"></i> Reporte de Inversión
+                    </button>
                 </div>
                 <!-- End Product Management Buttons -->
 
@@ -1816,6 +2052,13 @@
                             <input type="number" id="arrival-quantity" class="form-control" 
                                    min="0.01" step="0.01" required placeholder="Ej: 10.00">
                         </div>
+
+                        <!-- AGREGAR ESTE NUEVO CAMPO -->
+                        <div class="form-group">
+                            <label for="arrival-cost">Costo de la Llegada ($) *</label>
+                            <input type="number" id="arrival-cost" class="form-control" 
+                                   min="0.01" step="0.01" required placeholder="Ej: 150.75">
+                        </div>
                     
                         <div class="form-group">
                             <label for="arrival-notes">Notas (Opcional)</label>
@@ -1988,5 +2231,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 
     <script src="main.js"></script>
+    <script src="control.js"></script>
 </body>
 </html>
