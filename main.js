@@ -1,3 +1,5 @@
+//funciiona perfectamente con la version 3.2 del html
+
 // Datos iniciales (se cargarán desde Excel)
         let products = [];
         let sales = [];
@@ -47,13 +49,16 @@
         };
 
         // Configuration for Arrivals Excel
+        // Actualiza EXCEL_CONFIG_ARRIVALS para incluir el costo:
         const EXCEL_CONFIG_ARRIVALS = {
             sheetName: 'Llegadas',
-            headers: ['ID Producto', 'Nombre Producto', 'Cantidad Llegada', 'Fecha Llegada', 'Notas', 'Stock Anterior', 'Nuevo Stock'],
+            headers: ['ID Producto', 'Nombre Producto', 'Cantidad Llegada', 'Costo Unitario', 'Costo Total', 'Fecha Llegada', 'Notas', 'Stock Anterior', 'Nuevo Stock'],
             mappings: {
                 productId: 'ID Producto',
                 productName: 'Nombre Producto',
                 quantity: 'Cantidad Llegada',
+                unitCost: 'Costo Unitario',
+                totalCost: 'Costo Total',
                 date: 'Fecha Llegada',
                 notes: 'Notas',
                 previousStock: 'Stock Anterior',
@@ -179,6 +184,9 @@
         const arrivalQuantityInput = document.getElementById('arrival-quantity');
         const arrivalNotesInput = document.getElementById('arrival-notes');
         const arrivalFormStatusMessage = document.getElementById('arrival-form-status-message');
+
+        // variables para costo de llegadas
+        const arrivalCostInput = document.getElementById('arrival-cost');
 
 
         // Función para mostrar mensajes de estado
@@ -682,7 +690,7 @@
             console.log('Controles de llegadas configurados (ocultos por defecto)');
         }
 
-        // Función para exportar llegadas a Excel
+        // Función para exportar llegadas a Excel CON COSTO
         function exportArrivalsToExcel() {
             if (arrivals.length === 0) {
                 showStatusMessage('No hay registros de llegadas para exportar.', 'error');
@@ -694,6 +702,8 @@
                 'ID Producto': arrival.productId,
                 'Nombre Producto': arrival.productName,
                 'Cantidad Llegada': arrival.quantity,
+                'Costo Unitario': arrival.unitCost.toFixed(2), // NUEVO
+                'Costo Total': arrival.totalCost.toFixed(2),   // NUEVO
                 'Fecha Llegada': arrival.date,
                 'Notas': arrival.notes || '',
                 'Stock Anterior': arrival.previousStock,
@@ -708,6 +718,8 @@
                 {wch: 12},  // ID Producto
                 {wch: 30},  // Nombre Producto
                 {wch: 15},  // Cantidad Llegada
+                {wch: 15},  // Costo Unitario
+                {wch: 15},  // Costo Total
                 {wch: 20},  // Fecha Llegada
                 {wch: 25},  // Notas
                 {wch: 15},  // Stock Anterior
@@ -1453,35 +1465,43 @@
             if (dateString instanceof Date) {
                 return dateString;
             }
-
-            // Intentar formato español (dd/mm/yyyy)
-            const parts = dateString.split('/');
-            if (parts.length === 3) {
-                const [day, month, year] = parts;
-                return new Date(year, month - 1, day);
-            }
-
-            // Intentar formato con hora (dd/mm/yyyy hh:mm)
-            if (dateString.includes(' ')) {
-                const [datePart, timePart] = dateString.split(' ');
-                const dateParts = datePart.split('/');
-                if (dateParts.length === 3) {
-                    const [day, month, year] = dateParts;
-                    const timeParts = timePart.split(':');
-                    const hours = parseInt(timeParts[0]) || 0;
-                    const minutes = parseInt(timeParts[1]) || 0;
-                    return new Date(year, month - 1, day, hours, minutes);
+        
+            // Si la fecha ya viene en formato ISO (de los inputs date), retornarla
+            if (dateString.includes('-')) {
+                const isoDate = new Date(dateString);
+                if (!isNaN(isoDate.getTime())) {
+                    return isoDate;
                 }
             }
+        
+            // Intentar formato español (dd/mm/yyyy)
+            const parts = dateString.split(/[/\s:]/);
+            if (parts.length >= 3) {
+                const day = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1;
+                const year = parseInt(parts[2]);
 
-            // Intentar formato ISO
+                // Si el año tiene 2 dígitos, asumir siglo 21
+                const fullYear = year < 100 ? 2000 + year : year;
+
+                // Si hay hora incluida
+                if (parts.length >= 5) {
+                    const hours = parseInt(parts[3]) || 0;
+                    const minutes = parseInt(parts[4]) || 0;
+                    return new Date(fullYear, month, day, hours, minutes);
+                }
+
+                return new Date(fullYear, month, day);
+            }
+        
+            // Intentar formato ISO directo
             const isoDate = new Date(dateString);
             if (!isNaN(isoDate.getTime())) {
                 return isoDate;
             }
-
+        
             // Si todo falla, retornar fecha actual
-            console.warn('No se pudo parsear la fecha:', dateString);
+            console.warn('No se pudo parsear la fecha:', dateString, 'Usando fecha actual');
             return new Date();
         }
 
@@ -2146,6 +2166,857 @@
             }
         }
 
+        // Función para generar reporte de inversión
+        function generateInvestmentReport(startDate, endDate) {
+            // Filtrar llegadas por rango de fechas
+            const filteredArrivals = arrivals.filter(arrival => {
+                const arrivalDate = parseDate(arrival.date);
+                return arrivalDate >= startDate && arrivalDate <= endDate;
+            });
+        
+            if (filteredArrivals.length === 0) {
+                showStatusMessage('No hay llegadas en el rango de fechas seleccionado.', 'error');
+                return null;
+            }
+        
+            // Calcular estadísticas de inversión
+            const stats = {
+                totalArrivals: filteredArrivals.length,
+                totalInvestment: 0,
+                totalQuantity: 0,
+                arrivalsByProduct: {},
+                monthlyInvestment: {}
+            };
+        
+            filteredArrivals.forEach(arrival => {
+                stats.totalInvestment += arrival.totalCost;
+                stats.totalQuantity += arrival.quantity;
+            
+                // Agrupar por producto
+                if (!stats.arrivalsByProduct[arrival.productId]) {
+                    stats.arrivalsByProduct[arrival.productId] = {
+                        productId: arrival.productId,
+                        productName: arrival.productName,
+                        totalQuantity: 0,
+                        totalInvestment: 0,
+                        averageUnitCost: 0
+                    };
+                }
+                stats.arrivalsByProduct[arrival.productId].totalQuantity += arrival.quantity;
+                stats.arrivalsByProduct[arrival.productId].totalInvestment += arrival.totalCost;
+                stats.arrivalsByProduct[arrival.productId].averageUnitCost = 
+                    stats.arrivalsByProduct[arrival.productId].totalInvestment / 
+                    stats.arrivalsByProduct[arrival.productId].totalQuantity;
+            
+                // Agrupar por mes
+                const arrivalDate = parseDate(arrival.date);
+                const monthKey = `${arrivalDate.getFullYear()}-${(arrivalDate.getMonth() + 1).toString().padStart(2, '0')}`;
+
+                if (!stats.monthlyInvestment[monthKey]) {
+                    stats.monthlyInvestment[monthKey] = {
+                        month: monthKey,
+                        totalInvestment: 0,
+                        arrivalCount: 0
+                    };
+                }
+                stats.monthlyInvestment[monthKey].totalInvestment += arrival.totalCost;
+                stats.monthlyInvestment[monthKey].arrivalCount += 1;
+            });
+        
+            return {
+                filteredArrivals,
+                stats
+            };
+        }
+
+        // Función para exportar reporte de inversión a Excel
+        function exportInvestmentReportToExcel(startDate, endDate) {
+            const report = generateInvestmentReport(startDate, endDate);
+
+            if (!report) {
+                return;
+            }
+        
+            const { filteredArrivals, stats } = report;
+        
+            // Crear datos para exportación
+            const exportData = [];
+        
+            // Agregar resumen
+            exportData.push(
+                { 'Tipo': 'Reporte de Inversión en Inventario', 'Valor': '' },
+                { 'Tipo': 'Período', 'Valor': `${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}` },
+                { 'Tipo': 'Total Llegadas', 'Valor': stats.totalArrivals },
+                { 'Tipo': 'Inversión Total', 'Valor': formatPrice(stats.totalInvestment) },
+                { 'Tipo': 'Cantidad Total', 'Valor': stats.totalQuantity },
+                { 'Tipo': 'Costo Promedio por Unidad', 'Valor': formatPrice(stats.totalInvestment / stats.totalQuantity) },
+                { 'Tipo': '', 'Valor': '' }
+            );
+        
+            // Agregar encabezados de llegadas detalladas
+            exportData.push(
+                { 'ID Llegada': '', 'Fecha': '', 'Producto': '', 'Cantidad': '', 'Costo Unitario': '', 'Costo Total': '', 'Stock Anterior': '', 'Nuevo Stock': '', 'Notas': '' }
+            );
+        
+            // Agregar llegadas detalladas
+            filteredArrivals.forEach(arrival => {
+                exportData.push({
+                    'ID Llegada': arrival.id,
+                    'Fecha': arrival.date,
+                    'Producto': arrival.productName,
+                    'Cantidad': arrival.quantity,
+                    'Costo Unitario': arrival.unitCost.toFixed(2),
+                    'Costo Total': arrival.totalCost.toFixed(2),
+                    'Stock Anterior': arrival.previousStock,
+                    'Nuevo Stock': arrival.newStock,
+                    'Notas': arrival.notes || ''
+                });
+            });
+        
+            // Agregar separador
+            exportData.push(
+                { 'Tipo': '', 'Valor': '' },
+                { 'Tipo': 'Inversión por Producto', 'Valor': '' }
+            );
+        
+            // Agregar inversión por producto
+            Object.values(stats.arrivalsByProduct).forEach(product => {
+                exportData.push({
+                    'Tipo': product.productName,
+                    'Valor': formatPrice(product.totalInvestment),
+                    'Cantidad': product.totalQuantity,
+                    'Costo Promedio': formatPrice(product.averageUnitCost)
+                });
+            });
+        
+            // Agregar separador
+            exportData.push(
+                { 'Tipo': '', 'Valor': '' },
+                { 'Tipo': 'Inversión Mensual', 'Valor': '' }
+            );
+        
+            // Agregar inversión mensual
+            Object.values(stats.monthlyInvestment).forEach(month => {
+                exportData.push({
+                    'Tipo': month.month,
+                    'Valor': formatPrice(month.totalInvestment),
+                    'Llegadas': month.arrivalCount
+                });
+            });
+        
+            // Crear hoja de trabajo
+            const ws = XLSX.utils.json_to_sheet(exportData);
+        
+            // Crear libro de trabajo
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Reporte_Inversion');
+        
+            // Generar nombre de archivo
+            const startStr = startDate.toISOString().split('T')[0];
+            const endStr = endDate.toISOString().split('T')[0];
+            const fileName = `reporte_inversion_${startStr}_${endStr}.xlsx`;
+        
+            // Descargar archivo
+            XLSX.writeFile(wb, fileName);
+        
+            showStatusMessage('Reporte de inversión exportado a Excel correctamente', 'success');
+        }
+
+        // Función para mostrar reporte de inversión en la interfaz (ESTILO MEJORADO)
+        function showInvestmentReport() {
+            // Crear un modal con el mismo estilo que reportes de ventas
+            const investmentReportHTML = `
+                <div id="investment-report-modal" class="modal">
+                    <div class="modal-content reports-modal-content">
+                        <div class="modal-header">
+                            <h2><i class="fas fa-chart-pie"></i> Reporte de Inversión en Inventario</h2>
+                            <button type="button" id="close-investment-modal-btn" class="close-modal-btn">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="investment-form" style="margin-bottom: 30px;">
+                                <div class="form-group">
+                                    <label for="investment-start-date">
+                                        <i class="fas fa-calendar-alt"></i> Fecha de Inicio:
+                                    </label>
+                                    <input type="date" id="investment-start-date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="investment-end-date">
+                                        <i class="fas fa-calendar-alt"></i> Fecha de Fin:
+                                    </label>
+                                    <input type="date" id="investment-end-date" required>
+                                </div>
+                                
+                                <div id="investment-form-status-message"></div>
+                                
+                                <div class="modal-buttons">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-chart-line"></i> Generar Reporte
+                                    </button>
+                                    <button type="button" id="export-investment-excel-btn" class="btn btn-success">
+                                        <i class="fas fa-file-excel"></i> Exportar a Excel
+                                    </button>
+                                </div>
+                            </form>
+                            
+                            <!-- CAMBIAR: Remover style="display: none;" inicial -->
+                            <button type="button" id="export-investment-pdf-btn" class="btn btn-danger" style="margin-bottom: 20px;">
+                                <i class="fas fa-file-pdf"></i> Exportar a PDF
+                            </button>
+                            
+                            <div id="investment-results" style="display: none;">
+                                <!-- ... resto del código ... -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Agregar el modal al DOM si no existe
+            if (!document.getElementById('investment-report-modal')) {
+                document.body.insertAdjacentHTML('beforeend', investmentReportHTML);
+                
+                // Configurar event listeners
+                const modal = document.getElementById('investment-report-modal');
+                const closeBtn = document.getElementById('close-investment-modal-btn');
+                const form = document.getElementById('investment-form');
+                const exportExcelBtn = document.getElementById('export-investment-excel-btn');
+                const exportPdfBtn = document.getElementById('export-investment-pdf-btn');
+                
+                // ESTABLECER FECHAS POR DEFECTO
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 30);
+                
+                document.getElementById('investment-start-date').value = startDate.toISOString().split('T')[0];
+                document.getElementById('investment-end-date').value = endDate.toISOString().split('T')[0];
+                
+                // OCULTAR BOTÓN PDF INICIALMENTE
+                if (exportPdfBtn) {
+                    exportPdfBtn.style.display = 'none';
+                }
+                
+                closeBtn.addEventListener('click', closeInvestmentReportModal);
+
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        closeInvestmentReportModal();
+                    }
+                });
+                
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+                
+                form.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const startDate = new Date(document.getElementById('investment-start-date').value);
+                    const endDate = new Date(document.getElementById('investment-end-date').value);
+                    
+                    if (startDate > endDate) {
+                        showInvestmentFormStatusMessage('La fecha de inicio no puede ser mayor a la fecha de fin.', 'error');
+                        return;
+                    }
+                    
+                    const report = generateInvestmentReport(startDate, endDate);
+                    if (report) {
+                        displayInvestmentReport(report, startDate, endDate);
+                    }
+                });
+                
+                exportExcelBtn.addEventListener('click', () => {
+                    const startDate = new Date(document.getElementById('investment-start-date').value);
+                    const endDate = new Date(document.getElementById('investment-end-date').value);
+                    exportInvestmentReportToExcel(startDate, endDate);
+                });
+                
+                // Event listener para exportar a PDF
+                if (exportPdfBtn) {
+                    exportPdfBtn.addEventListener('click', () => {
+                        const startDate = new Date(document.getElementById('investment-start-date').value);
+                        const endDate = new Date(document.getElementById('investment-end-date').value);
+                        const report = generateInvestmentReport(startDate, endDate);
+                        
+                        if (report) {
+                            exportInvestmentReportToPDF(report, startDate, endDate);
+                        } else {
+                            showInvestmentFormStatusMessage('No hay datos para exportar a PDF.', 'error');
+                        }
+                    });
+                }
+            }
+            
+            // Mostrar el modal
+            const modal = document.getElementById('investment-report-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                
+                // Limpiar resultados anteriores
+                const resultsDiv = document.getElementById('investment-results');
+                if (resultsDiv) {
+                    resultsDiv.style.display = 'none';
+                }
+                
+                // Ocultar botón PDF inicialmente
+                const exportPdfBtn = document.getElementById('export-investment-pdf-btn');
+                if (exportPdfBtn) {
+                    exportPdfBtn.style.display = 'none';
+                }
+            }
+            
+            // Poner foco en la primera fecha
+            setTimeout(() => {
+                const startDateInput = document.getElementById('investment-start-date');
+                if (startDateInput) {
+                    startDateInput.focus();
+                }
+            }, 300);
+        }
+
+        // Función para mostrar mensajes en el formulario de inversión
+        function showInvestmentFormStatusMessage(message, type = 'info') {
+            const statusElement = document.getElementById('investment-form-status-message');
+            if (statusElement) {
+                statusElement.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+
+                if (type === 'success' || type === 'info') {
+                    setTimeout(() => {
+                        statusElement.innerHTML = '';
+                    }, 5000);
+                }
+            }
+        }
+
+        // Función para mostrar el reporte de inversión en la interfaz (ACTUALIZADA)
+        function displayInvestmentReport(report, startDate, endDate) {
+            const { stats, filteredArrivals } = report;
+            const resultsDiv = document.getElementById('investment-results');
+            const exportPdfBtn = document.getElementById('export-investment-pdf-btn');
+
+            // VERIFICAR QUE LOS ELEMENTOS EXISTAN
+            if (!resultsDiv || !exportPdfBtn) {
+                console.error('Elementos del DOM no encontrados');
+                showInvestmentFormStatusMessage('Error: Elementos de la interfaz no disponibles', 'error');
+                return;
+            }
+
+            // Actualizar estadísticas en la UI
+            const totalInvestmentEl = document.getElementById('total-investment-amount');
+            const totalArrivalsEl = document.getElementById('total-arrivals-count');
+            const totalUnitsEl = document.getElementById('total-units-purchased');
+            const averageCostEl = document.getElementById('average-unit-cost');
+
+            if (totalInvestmentEl) totalInvestmentEl.textContent = formatPrice(stats.totalInvestment);
+            if (totalArrivalsEl) totalArrivalsEl.textContent = stats.totalArrivals;
+            if (totalUnitsEl) totalUnitsEl.textContent = stats.totalQuantity;
+            if (averageCostEl) averageCostEl.textContent = formatPrice(stats.totalInvestment / stats.totalQuantity);
+
+            // Llenar tabla de inversión por producto
+            const investmentTableBody = document.getElementById('investment-table-body');
+            if (investmentTableBody) {
+                investmentTableBody.innerHTML = '';
+
+                // Ordenar productos por inversión (mayor a menor)
+                const sortedProducts = Object.values(stats.arrivalsByProduct)
+                    .sort((a, b) => b.totalInvestment - a.totalInvestment);
+
+                sortedProducts.forEach(product => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${product.productName}</td>
+                        <td>${product.totalQuantity}</td>
+                        <td>${formatPrice(product.totalInvestment)}</td>
+                        <td>${formatPrice(product.averageUnitCost)}</td>
+                    `;
+                    investmentTableBody.appendChild(row);
+                });
+            }
+
+            // Llenar tabla de llegadas detalladas
+            const arrivalsTableBody = document.getElementById('arrivals-table-body');
+            if (arrivalsTableBody) {
+                arrivalsTableBody.innerHTML = '';
+
+                // Ordenar llegadas por fecha (más reciente primero)
+                filteredArrivals.sort((a, b) => {
+                    const dateA = parseDate(a.date);
+                    const dateB = parseDate(b.date);
+                    return dateB - dateA;
+                });
+
+                filteredArrivals.forEach(arrival => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${arrival.id}</td>
+                        <td>${arrival.date}</td>
+                        <td>${arrival.productName}</td>
+                                        <td>${arrival.quantity}</td>
+                                        <td>${formatPrice(arrival.unitCost)}</td>
+                                        <td>${formatPrice(arrival.totalCost)}</td>
+                                        <td>${arrival.previousStock}</td>
+                                        <td>${arrival.newStock}</td>
+                                    `;
+                                    arrivalsTableBody.appendChild(row);
+                                });
+                            }
+
+                            // Crear gráfico
+                            const ctx = document.getElementById('investment-chart');
+                            if (ctx) {
+                                // Destruir gráfico anterior si existe
+                                if (window.investmentChart) {
+                                    window.investmentChart.destroy();
+                                }
+
+                                // Preparar datos para el gráfico
+                                const monthlyData = Object.values(stats.monthlyInvestment)
+                                    .sort((a, b) => a.month.localeCompare(b.month));
+
+                                window.investmentChart = new Chart(ctx, {
+                                    type: 'bar',
+                                    data: {
+                                        labels: monthlyData.map(m => {
+                                            const [year, month] = m.month.split('-');
+                                            return `${month}/${year}`;
+                                        }),
+                                        datasets: [{
+                                            label: 'Inversión Mensual ($)',
+                                            data: monthlyData.map(m => m.totalInvestment),
+                                            backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                                            borderColor: 'rgba(75, 192, 192, 1)',
+                                            borderWidth: 2,
+                                            borderRadius: 5
+                                        }]
+                                    },
+                                    options: {
+                                        responsive: true,
+                                        maintainAspectRatio: false,
+                                        plugins: {
+                                            title: {
+                                                display: true,
+                                                text: 'Inversión Mensual en Inventario',
+                                                font: {
+                                                    size: 16
+                                                }
+                                            },
+                                            legend: {
+                                                display: true
+                                            }
+                                        },
+                                        scales: {
+                                            y: {
+                                                beginAtZero: true,
+                                                ticks: {
+                                                    callback: function(value) {
+                                                        return '$' + value.toFixed(2);
+                                                    }
+                                                },
+                                                title: {
+                                                    display: true,
+                                                    text: 'Monto ($)'
+                                                }
+                                            },
+                                            x: {
+                                                title: {
+                                                    display: true,
+                                                    text: 'Mes'
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+                            }
+
+                            // Guardar datos del reporte para exportación PDF
+                            window.currentInvestmentReportData = {
+                                startDate,
+                                endDate,
+                                report,
+                                stats,
+                                filteredArrivals,
+                                sortedProducts: Object.values(stats.arrivalsByProduct)
+                                    .sort((a, b) => b.totalInvestment - a.totalInvestment),
+                                monthlyData: Object.values(stats.monthlyInvestment)
+                                    .sort((a, b) => a.month.localeCompare(b.month))
+                            };
+
+                            // MOSTRAR RESULTADOS Y BOTÓN DE PDF
+                            resultsDiv.style.display = 'block';
+                            exportPdfBtn.style.display = 'block'; // ¡ESTA ES LA LÍNEA CLAVE!
+
+                            showInvestmentFormStatusMessage(
+                                `Reporte generado: ${stats.totalArrivals} llegadas encontradas, inversión total: ${formatPrice(stats.totalInvestment)}`,
+                                'success'
+                            );
+                        }
+
+
+        // Función para exportar reporte de inversión a PDF (NUEVA)
+        function exportInvestmentReportToPDF(reportData, startDate, endDate) {
+            const { stats, filteredArrivals, sortedProducts, monthlyData } = reportData;
+
+            // Mostrar mensaje de procesamiento
+            showInvestmentFormStatusMessage('Generando PDF, por favor espere...', 'info');
+
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Configuración
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const margin = 20;
+            let yPosition = margin;
+            const lineHeight = 7;
+            const sectionSpacing = 15;
+
+            // Función para agregar texto con manejo de salto de página
+            function addText(text, x, y, options = {}) {
+                const maxWidth = pageWidth - (margin * 2) - (x - margin);
+                const lines = pdf.splitTextToSize(text, maxWidth);
+
+                // Verificar si hay espacio suficiente
+                const neededHeight = lines.length * lineHeight;
+                if (y + neededHeight > pdf.internal.pageSize.getHeight() - margin) {
+                    pdf.addPage();
+                    y = margin;
+                }
+
+                pdf.text(lines, x, y, options);
+                return y + (lines.length * lineHeight) + (options.spacing || 0);
+            }
+
+            // Función para dibujar línea
+            function drawLine(y, startX = margin, endX = pageWidth - margin, color = [200, 200, 200], width = 0.5) {
+                pdf.setDrawColor(...color);
+                pdf.setLineWidth(width);
+                pdf.line(startX, y, endX, y);
+                return y + 5;
+            }
+
+            // Función para crear una celda de tabla
+            function addTableCell(text, x, y, width, align = 'left', bold = false) {
+                if (bold) {
+                    pdf.setFont(undefined, 'bold');
+                }
+
+                // Establecer color de fondo para encabezados
+                if (bold) {
+                    pdf.setFillColor(75, 192, 192); // Color teal para inversión
+                    pdf.rect(x, y - 4, width, 8, 'F');
+                    pdf.setTextColor(255, 255, 255);
+                } else {
+                    pdf.setTextColor(0, 0, 0);
+                }
+
+                pdf.text(text, x + (align === 'center' ? width / 2 : align === 'right' ? width - 2 : 2), y, {
+                    align: align
+                });
+
+                if (bold) {
+                    pdf.setFont(undefined, 'normal');
+                    pdf.setTextColor(0, 0, 0);
+                }
+
+                // Dibujar borde de la celda
+                pdf.setDrawColor(200, 200, 200);
+                pdf.setLineWidth(0.2);
+                pdf.rect(x, y - 4, width, 8);
+            }
+
+            // 1. ENCABEZADO DEL REPORTE
+            pdf.setFontSize(24);
+            pdf.setTextColor(75, 192, 192); // Color teal
+            yPosition = addText('REPORTE DE INVERSIÓN EN INVENTARIO', margin, yPosition);
+
+            pdf.setFontSize(14);
+            pdf.setTextColor(118, 75, 162);
+            yPosition = addText(`Período: ${formatDateForDisplay(startDate)} - ${formatDateForDisplay(endDate)}`, 
+                               margin, yPosition + 5);
+
+            pdf.setFontSize(10);
+            pdf.setTextColor(100, 100, 100);
+            yPosition = addText(`Generado el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`, 
+                               margin, yPosition + 3);
+
+            yPosition = drawLine(yPosition + 10);
+
+            // 2. RESUMEN ESTADÍSTICO
+            pdf.setFontSize(16);
+            pdf.setTextColor(75, 192, 192);
+            yPosition = addText('RESUMEN ESTADÍSTICO', margin, yPosition + sectionSpacing);
+
+            pdf.setFontSize(10);
+            pdf.setTextColor(0, 0, 0);
+
+            // Crear tabla de estadísticas
+            const statWidth = (pageWidth - (margin * 2)) / 4;
+            let statX = margin;
+
+            // Fila de títulos
+            addTableCell('TOTAL INVERTIDO', statX, yPosition + 10, statWidth, 'center', true);
+            addTableCell('CANT. LLEGADAS', statX + statWidth, yPosition + 10, statWidth, 'center', true);
+            addTableCell('UNID. COMPRADAS', statX + (statWidth * 2), yPosition + 10, statWidth, 'center', true);
+            addTableCell('COSTO PROMEDIO', statX + (statWidth * 3), yPosition + 10, statWidth, 'center', true);
+
+            // Fila de valores
+            addTableCell(formatPrice(stats.totalInvestment), statX, yPosition + 20, statWidth, 'center');
+            addTableCell(stats.totalArrivals.toString(), statX + statWidth, yPosition + 20, statWidth, 'center');
+            addTableCell(stats.totalQuantity.toString(), statX + (statWidth * 2), yPosition + 20, statWidth, 'center');
+            addTableCell(formatPrice(stats.totalInvestment / stats.totalQuantity), 
+                         statX + (statWidth * 3), yPosition + 20, statWidth, 'center');
+
+            yPosition += 30;
+            yPosition = drawLine(yPosition + 10);
+
+            // 3. CAPTURAR Y AGREGAR IMAGEN DEL GRÁFICO
+            const chartCanvas = document.getElementById('investment-chart');
+            if (chartCanvas) {
+                html2canvas(chartCanvas, {
+                    scale: 2,
+                    backgroundColor: '#ffffff',
+                    logging: false
+                }).then(chartImage => {
+                    const imgData = chartImage.toDataURL('image/png');
+                    const imgWidth = pageWidth - (margin * 2);
+                    const imgHeight = (chartCanvas.height * imgWidth) / chartCanvas.width;
+
+                    // Verificar espacio en página
+                    if (yPosition + imgHeight > pdf.internal.pageSize.getHeight() - margin) {
+                        pdf.addPage();
+                        yPosition = margin;
+                    }
+
+                    pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight);
+                    yPosition += imgHeight + 10;
+
+                    // Continuar con el resto del contenido
+                    continuePDFContent();
+                }).catch(error => {
+                    console.error('Error capturando gráfico:', error);
+                    continuePDFContent();
+                });
+            } else {
+                continuePDFContent();
+            }
+
+            // Función para continuar con el contenido del PDF
+            function continuePDFContent() {
+                // 4. INVERSIÓN POR PRODUCTO (Top 10)
+                pdf.setFontSize(16);
+                pdf.setTextColor(75, 192, 192);
+                yPosition = addText('INVERSIÓN POR PRODUCTO', margin, yPosition + sectionSpacing);
+
+                if (sortedProducts.length > 0) {
+                    const prodWidth = (pageWidth - (margin * 2)) / 4;
+                    let prodX = margin;
+
+                    // Encabezados
+                    addTableCell('PRODUCTO', prodX, yPosition + 10, prodWidth * 2, 'center', true);
+                    addTableCell('CANTIDAD', prodX + (prodWidth * 2), yPosition + 10, prodWidth, 'center', true);
+                    addTableCell('INVERSIÓN', prodX + (prodWidth * 3), yPosition + 10, prodWidth, 'center', true);
+
+                    let prodY = yPosition + 20;
+
+                    // Filas de datos (mostrar solo top 10)
+                    const topProducts = sortedProducts.slice(0, 10);
+                    topProducts.forEach((product, index) => {
+                        if (prodY > pdf.internal.pageSize.getHeight() - margin) {
+                            pdf.addPage();
+                            prodY = margin + 20;
+                        }
+
+                        // Truncar nombre largo
+                        const productName = product.productName.length > 30 ? 
+                            product.productName.substring(0, 30) + '...' : product.productName;
+
+                        addTableCell(`${index + 1}. ${productName}`, prodX, prodY, prodWidth * 2, 'left');
+                        addTableCell(product.totalQuantity.toString(), prodX + (prodWidth * 2), prodY, prodWidth, 'center');
+                        addTableCell(formatPrice(product.totalInvestment), prodX + (prodWidth * 3), prodY, prodWidth, 'center');
+
+                        prodY += 8;
+                    });
+
+                    yPosition = prodY;
+                }
+
+                yPosition = drawLine(yPosition + 10);
+
+                // 5. DETALLE DE LLEGADAS (simplificado)
+                pdf.setFontSize(16);
+                pdf.setTextColor(75, 192, 192);
+                yPosition = addText('DETALLE DE LLEGADAS', margin, yPosition + sectionSpacing);
+
+                pdf.setFontSize(10);
+                pdf.setTextColor(100, 100, 100);
+                yPosition = addText(`Total de llegadas en el período: ${filteredArrivals.length}`, margin, yPosition + 5);
+
+                // Tabla simplificada de llegadas
+                const arrivalWidth = (pageWidth - (margin * 2)) / 8;
+                let arrivalX = margin;
+
+                // Encabezados (solo en primera página)
+                addTableCell('ID', arrivalX, yPosition + 10, arrivalWidth, 'center', true);
+                addTableCell('FECHA', arrivalX + arrivalWidth, yPosition + 10, arrivalWidth, 'center', true);
+                addTableCell('PRODUCTO', arrivalX + (arrivalWidth * 2), yPosition + 10, arrivalWidth * 2, 'center', true);
+                addTableCell('CANTIDAD', arrivalX + (arrivalWidth * 4), yPosition + 10, arrivalWidth, 'center', true);
+                addTableCell('COSTO UNIT.', arrivalX + (arrivalWidth * 5), yPosition + 10, arrivalWidth, 'center', true);
+                addTableCell('COSTO TOTAL', arrivalX + (arrivalWidth * 6), yPosition + 10, arrivalWidth, 'center', true);
+
+                let arrivalY = yPosition + 20;
+
+                // Filas de llegadas (mostrar solo las primeras 50 para no saturar)
+                const arrivalsToShow = filteredArrivals.slice(0, 50);
+                arrivalsToShow.forEach(arrival => {
+                    if (arrivalY > pdf.internal.pageSize.getHeight() - margin) {
+                        pdf.addPage();
+                        arrivalY = margin + 20;
+
+                        // Redibujar encabezados en nueva página
+                        addTableCell('ID', arrivalX, arrivalY - 10, arrivalWidth, 'center', true);
+                        addTableCell('FECHA', arrivalX + arrivalWidth, arrivalY - 10, arrivalWidth, 'center', true);
+                        addTableCell('PRODUCTO', arrivalX + (arrivalWidth * 2), arrivalY - 10, arrivalWidth * 2, 'center', true);
+                        addTableCell('CANTIDAD', arrivalX + (arrivalWidth * 4), arrivalY - 10, arrivalWidth, 'center', true);
+                        addTableCell('COSTO UNIT.', arrivalX + (arrivalWidth * 5), arrivalY - 10, arrivalWidth, 'center', true);
+                        addTableCell('COSTO TOTAL', arrivalX + (arrivalWidth * 6), arrivalY - 10, arrivalWidth, 'center', true);
+                    }
+
+                    // Truncar nombre de producto si es muy largo
+                    const productName = arrival.productName.length > 20 ? 
+                        arrival.productName.substring(0, 20) + '...' : arrival.productName;
+
+                    addTableCell(arrival.id.toString(), arrivalX, arrivalY, arrivalWidth, 'center');
+                    addTableCell(arrival.date.substring(0, 10), arrivalX + arrivalWidth, arrivalY, arrivalWidth, 'center');
+                    addTableCell(productName, arrivalX + (arrivalWidth * 2), arrivalY, arrivalWidth * 2, 'left');
+                    addTableCell(arrival.quantity.toString(), arrivalX + (arrivalWidth * 4), arrivalY, arrivalWidth, 'center');
+                    addTableCell(formatPrice(arrival.unitCost), arrivalX + (arrivalWidth * 5), arrivalY, arrivalWidth, 'center');
+                    addTableCell(formatPrice(arrival.totalCost), arrivalX + (arrivalWidth * 6), arrivalY, arrivalWidth, 'center');
+
+                    arrivalY += 8;
+                });
+
+                // Nota si hay más llegadas
+                if (filteredArrivals.length > 50) {
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(150, 150, 150);
+                    yPosition = addText(`Nota: Se muestran 50 de ${filteredArrivals.length} llegadas. Para ver el detalle completo, exporte a Excel.`, 
+                                      margin, arrivalY + 10);
+                }
+
+                // 6. PIE DE PÁGINA
+                const footerY = pdf.internal.pageSize.getHeight() - margin;
+                pdf.setFontSize(10);
+                pdf.setTextColor(100, 100, 100);
+
+                // Línea separadora
+                pdf.setDrawColor(200, 200, 200);
+                pdf.setLineWidth(0.5);
+                pdf.line(margin, footerY - 20, pageWidth - margin, footerY - 20);
+
+                // Texto del pie
+                pdf.text(`Página ${pdf.internal.getNumberOfPages()}`, margin, footerY - 10);
+                pdf.text('Reporte generado por PetShop POS System', pageWidth - margin, footerY - 10, { align: 'right' });
+                pdf.text(`© ${new Date().getFullYear()} - Todos los derechos reservados`, pageWidth / 2, footerY - 5, { align: 'center' });
+
+                // 7. GUARDAR PDF
+                const startStr = startDate.toISOString().split('T')[0];
+                const endStr = endDate.toISOString().split('T')[0];
+                const fileName = `reporte_inversion_${startStr}_${endStr}.pdf`;
+
+                pdf.save(fileName);
+
+                showInvestmentFormStatusMessage('Reporte exportado a PDF correctamente', 'success');
+            }
+        }
+
+        // Función para mostrar el reporte en la interfaz
+        function displayInvestmentReport(report, startDate, endDate) {
+            const { stats } = report;
+            const resultsDiv = document.getElementById('investment-results');
+        
+            const html = `
+                <div class="stats-summary">
+                    <div class="stat-card">
+                        <h4>Total Invertido</h4>
+                        <p>${formatPrice(stats.totalInvestment)}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Cantidad de Llegadas</h4>
+                        <p>${stats.totalArrivals}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Unidades Compradas</h4>
+                        <p>${stats.totalQuantity}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h4>Costo Promedio</h4>
+                        <p>${formatPrice(stats.totalInvestment / stats.totalQuantity)}</p>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <canvas id="investment-chart"></canvas>
+                </div>
+                <h4>Inversión por Producto</h4>
+                <div class="sales-table-container">
+                    <table class="detailed-table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Inversión</th>
+                                <th>Costo Promedio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${Object.values(stats.arrivalsByProduct).map(product => `
+                                <tr>
+                                    <td>${product.productName}</td>
+                                    <td>${product.totalQuantity}</td>
+                                    <td>${formatPrice(product.totalInvestment)}</td>
+                                    <td>${formatPrice(product.averageUnitCost)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+                            
+            resultsDiv.innerHTML = html;
+            resultsDiv.style.display = 'block';
+                            
+            // Crear gráfico
+            const ctx = document.getElementById('investment-chart').getContext('2d');
+            const monthlyData = Object.values(stats.monthlyInvestment).sort((a, b) => a.month.localeCompare(b.month));
+                            
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: monthlyData.map(m => m.month),
+                    datasets: [{
+                        label: 'Inversión Mensual ($)',
+                        data: monthlyData.map(m => m.totalInvestment),
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Inversión Mensual en Inventario'
+                        }
+                    }
+                }
+            });
+        }
+
         // Función para formatear fecha para PDF
         function formatDateForDisplay(date) {
             if (!(date instanceof Date)) {
@@ -2292,6 +3163,16 @@
                         reportsBtn.classList.remove('hidden-edit-button');
                     } else {
                         reportsBtn.classList.add('hidden-edit-button');
+                    }
+                }
+
+                // En la función toggleEditMode, agrega:
+                const investmentReportBtn = document.getElementById('open-investment-report-btn');
+                if (investmentReportBtn) {
+                    if (editModeActive) {
+                        investmentReportBtn.classList.remove('hidden-edit-button');
+                    } else {
+                        investmentReportBtn.classList.add('hidden-edit-button');
                     }
                 }
 
@@ -2463,6 +3344,26 @@
             registerArrivalModal.style.display = 'none';
         }
 
+        // Función para cerrar el modal de inversión
+        function closeInvestmentReportModal() {
+            const modal = document.getElementById('investment-report-modal');
+            if (modal) {
+                modal.style.display = 'none';
+
+                // Ocultar botón PDF cuando se cierra
+                const exportPdfBtn = document.getElementById('export-investment-pdf-btn');
+                if (exportPdfBtn) {
+                    exportPdfBtn.style.display = 'none';
+                }
+
+                // Destruir gráfico si existe
+                if (window.investmentChart) {
+                    window.investmentChart.destroy();
+                    window.investmentChart = null;
+                }
+            }
+        }
+
         // Función para poblar el select de productos (corregida)
         function populateArrivalProductSelect() {
             if (!arrivalProductSelect) {
@@ -2529,16 +3430,17 @@
             }
         }
     
-        // Función para registrar llegada desde el formulario (VERSIÓN SIMPLIFICADA)
+        // Función para registrar llegada desde el formulario (VERSIÓN CON COSTO)
         function registerArrivalFromForm() {
-            console.log('=== INICIANDO registerArrivalFromForm ===');
+            console.log('=== INICIANDO registerArrivalFromForm CON COSTO ===');
         
             // Obtener datos del formulario
             const productId = parseInt(arrivalProductSelect.value);
             const quantity = parseFloat(arrivalQuantityInput.value);
+            const cost = parseFloat(arrivalCostInput.value); // NUEVO
             const notes = arrivalNotesInput.value.trim();
         
-            console.log('Datos del formulario:', { productId, quantity });
+            console.log('Datos del formulario:', { productId, quantity, cost });
         
             // Validaciones básicas
             if (!productId || isNaN(productId)) {
@@ -2548,6 +3450,11 @@
         
             if (isNaN(quantity) || quantity <= 0) {
                 showArrivalFormStatusMessage('La cantidad debe ser un número mayor a 0', 'error');
+                return false;
+            }
+        
+            if (isNaN(cost) || cost <= 0) { // NUEVA VALIDACIÓN
+                showArrivalFormStatusMessage('El costo debe ser un número mayor a 0', 'error');
                 return false;
             }
         
@@ -2563,24 +3470,49 @@
         
             // CALCULAR NUEVO STOCK CORRECTAMENTE
             const previousStock = product.stock;
-            const newStock = previousStock + quantity; // Solo sumar una vez
+            const newStock = previousStock + quantity;
         
             console.log('Nuevo stock calculado:', `${previousStock} + ${quantity} = ${newStock}`);
         
-            // ACTUALIZAR PRODUCTO (SOLO UNA VEZ)
+            // Calcular costo unitario y total
+            const unitCost = cost / quantity; // Costo por unidad
+            const totalCost = cost; // Ya es el costo total
+        
+            console.log('Costos calculados:', { unitCost, totalCost });
+        
+            // ACTUALIZAR PRODUCTO - AGREGAR CAMPOS DE COSTO
             product.stock = newStock;
             product.lastUpdateDate = new Date().toLocaleString();
             product.previousStock = previousStock;
+
+            // Agregar campos de costo al producto si no existen
+            if (!product.costHistory) {
+                product.costHistory = [];
+            }
+
+            // Agregar registro de costo
+            product.costHistory.push({
+                date: new Date().toLocaleString(),
+                quantity: quantity,
+                unitCost: unitCost,
+                totalCost: totalCost,
+                arrivalId: arrivals.length + 1
+            });
+
+            // Calcular costo promedio
+            product.averageCost = calculateAverageCost(product);
         
             console.log('Producto actualizado. Stock actual:', product.stock);
         
-            // Crear registro de llegada
+            // Crear registro de llegada CON COSTO
             const newArrivalId = arrivals.length > 0 ? Math.max(...arrivals.map(a => a.id)) + 1 : 1;
             const arrival = {
                 id: newArrivalId,
                 productId: productId,
                 productName: product.name,
                 quantity: quantity,
+                unitCost: unitCost, // NUEVO
+                totalCost: totalCost, // NUEVO
                 date: new Date().toLocaleString(),
                 notes: notes,
                 previousStock: previousStock,
@@ -2599,6 +3531,8 @@
                 `✅ Llegada registrada exitosamente<br>
                  Producto: ${product.name}<br>
                  Cantidad: ${quantity} unidades<br>
+                 Costo total: $${totalCost.toFixed(2)}<br>
+                 Costo unitario: $${unitCost.toFixed(2)}<br>
                  Stock: ${previousStock} → ${newStock}`,
                 'success'
             );
@@ -2608,7 +3542,7 @@
                 renderProducts();
                 updateCart();
                 closeArrivalModal();
-                showStatusMessage(`Stock actualizado: ${product.name}`, 'success');
+                showStatusMessage(`Stock actualizado: ${product.name} (Inversión: $${totalCost.toFixed(2)})`, 'success');
             }, 1500);
         
             // Prevenir envío múltiple
@@ -2620,7 +3554,19 @@
                 }, 2000);
             }
         
-            return false; // Prevenir submit normal
+            return false;
+        }
+
+        // Función para calcular costo promedio
+        function calculateAverageCost(product) {
+            if (!product.costHistory || product.costHistory.length === 0) {
+                return 0;
+            }
+
+            const totalQuantity = product.costHistory.reduce((sum, record) => sum + record.quantity, 0);
+            const totalCost = product.costHistory.reduce((sum, record) => sum + record.totalCost, 0);
+
+            return totalQuantity > 0 ? totalCost / totalQuantity : 0;
         }
 
         // Guardar llegadas en localStorage
@@ -2629,11 +3575,25 @@
         }
 
         // Cargar llegadas desde localStorage (agrega en loadInitialData)
+        // Modifica para manejar llegadas antiguas que no tienen costo
         function loadArrivalsFromStorage() {
             const savedArrivals = localStorage.getItem('petshop_arrivals');
             if (savedArrivals) {
                 try {
                     arrivals = JSON.parse(savedArrivals);
+
+                    // Si hay llegadas antiguas sin costo, agregar valores por defecto
+                    arrivals = arrivals.map(arrival => {
+                        if (!arrival.unitCost || !arrival.totalCost) {
+                            return {
+                                ...arrival,
+                                unitCost: 0,
+                                totalCost: 0
+                            };
+                        }
+                        return arrival;
+                    });
+
                     console.log(`Registros de llegadas cargados: ${arrivals.length}`);
                 } catch (error) {
                     console.error('Error al cargar llegadas:', error);
@@ -3247,8 +4207,18 @@
                 exportArrivalsBtn.addEventListener('click', exportArrivalsToExcel);
             }
 
-            
+            // Agrega en la inicialización de event listeners:
+            const openInvestmentReportBtn = document.getElementById('open-investment-report-btn');
+            if (openInvestmentReportBtn) {
+                openInvestmentReportBtn.addEventListener('click', showInvestmentReport);
 
+                // También controla su visibilidad según el modo edición
+                if (editModeActive) {
+                    openInvestmentReportBtn.classList.remove('hidden-edit-button');
+                } else {
+                    openInvestmentReportBtn.classList.add('hidden-edit-button');
+                }
+            }
 
             // Event listener para Importar Usuarios (botón del panel de controles)
             const importUsersBtn = document.getElementById('import-users-btn');
