@@ -8,16 +8,12 @@
         // Configuración para el archivo Excel
         const EXCEL_CONFIG = {
             sheetName: 'Productos',
-            headers: ['ID', 'Nombre', 'Precio', 'Categoría', 'Stock', 'Fecha Creación', 'Última Actualización', 'Stock Previo'],
+            headers: ['Nombre', 'Precio', 'Categoría', 'Stock'],
             mappings: {
-                id: 'ID',
                 name: 'Nombre',
                 price: 'Precio',
                 category: 'Categoría',
                 stock: 'Stock',
-                creationDate: 'Fecha Creación',
-                lastUpdateDate: 'Última Actualización',
-                previousStock: 'Stock Previo'
             }
         };
 
