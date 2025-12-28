@@ -1418,6 +1418,15 @@
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
 
+            // Precio
+            doc.setFontSize(8);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont(undefined, 'bold');
+
+            //formatear precio
+            const priceText = formatPrice(product.price);
+            doc.text(priceText, pageWidth / 2, margin + 2, { align: 'center' });
+
             // 2. NOMBRE DEL PRODUCTO (ajustado automáticamente)
             doc.setFontSize(7);
             doc.setTextColor(0, 0, 0);
@@ -4777,4 +4786,3 @@
 
         // Inicializar cuando el DOM esté cargado
         document.addEventListener('DOMContentLoaded', initApp);
-
