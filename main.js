@@ -1421,12 +1421,6 @@
             // Configurar fuente por defecto
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-        
-            // 1. NOMBRE DE LA TIENDA (parte superior)
-            doc.setFontSize(6);
-            doc.setTextColor(139, 0, 0); // Color guinda
-            doc.setFont(undefined, 'bold');
-            doc.text('PETSHOP', pageWidth / 2, margin + 2, { align: 'center' });
 
             // 2. NOMBRE DEL PRODUCTO (ajustado automáticamente)
             doc.setFontSize(7);
@@ -1458,18 +1452,40 @@
                 const barcodeNumber = '0' + product.id;
 
                 JsBarcode(canvas, barcodeNumber, {
-                    format: "EAN13",
-                    width: 1.2, // Ancho más delgado para 50mm
-                    height: 12,  // Altura ajustada
-                    displayValue: false, // Ocultar números debajo
-                    fontSize: 0,
-                    margin: 0
+                    format: 'ean13',
+
+                    with: 1.5,
+                    height: 75,
+
+                    margin: 15,
+                    marginTop: 20,
+                    marginBottom: 25,
+
+                    displayValue: true,
+                    fontSize: 16,
+                    font: 'monospace',
+                    textAlign: 'center',
+                    textPosition: 'bottom',
+                    textMargin: 8,
+
+                    background: '#ffffff',
+                    lineColor: '#000000',
+
+                    flat: true,
+                    lastChar: ">",
+                    ean128: false,
+
+                    valid: function (valid) {
+                        if (!valid) {
+                            console.warn('Número de código de barras inválido para EAN-13:', barcodeNumber);
+                        }
+                    }
                 });
             
-                const barcodeData = canvas.toDataURL('image/png');
+                const barcodeData = canvas.toDataURL('image/png', 1.0);
 
                 // Tamaño del código de barras (optimizado para 50mm)
-                const barcodeWidth = 40;
+                const barcodeWidth = 50;
                 const barcodeHeight = (canvas.height * barcodeWidth) / canvas.width;
 
                 // Posicionar centrado
@@ -1478,11 +1494,6 @@
 
                 doc.addImage(barcodeData, 'PNG', barcodeX, barcodeY, barcodeWidth, barcodeHeight);
 
-                // Mostrar el ID debajo del código de barras
-                doc.setFontSize(5);
-                doc.setTextColor(100, 100, 100);
-                doc.text(product.id, pageWidth / 2, barcodeY + barcodeHeight + 1.5, { align: 'center' });
-
             } catch (error) {
                 console.error('Error generando código de barras:', error);
                 // Fallback: mostrar ID como texto
@@ -1490,56 +1501,7 @@
                 doc.setTextColor(0, 0, 0);
                 doc.text(`ID: ${product.id}`, pageWidth / 2, nameY + 10, { align: 'center' });
             }
-        
-            // 4. PRECIO (parte inferior derecha)
-            doc.setFontSize(9);
-            doc.setTextColor(139, 0, 0); // Color guinda
-            doc.setFont(undefined, 'bold');
-            const priceText = formatPrice(product.price);
-            doc.text(priceText, pageWidth - margin - 1, pageHeight - margin - 1, { align: 'right' });
-        
-            // 5. STOCK (parte inferior izquierda, opcional)
-            doc.setFontSize(5);
-            doc.setTextColor(100, 100, 100);
-            doc.setFont(undefined, 'normal');
-            doc.text(`STK: ${product.stock}`, margin + 1, pageHeight - margin - 1);
-        
-            // 6. LÍNEA DIVISORIA (opcional)
-            doc.setDrawColor(200, 200, 200);
-            doc.setLineWidth(0.1);
-            doc.line(margin, pageHeight - 5, pageWidth - margin, pageHeight - 5);
-        
-            // 7. MARCO DE RECORTE (líneas punteadas para guía de corte)
-            doc.setDrawColor(150, 150, 150);
-            doc.setLineWidth(0.1);
-
-            // Línea punteada superior
-            drawDashedLine(doc, margin, margin, pageWidth - margin, margin);
-            // Línea punteada inferior
-            drawDashedLine(doc, margin, pageHeight - margin, pageWidth - margin, pageHeight - margin);
-            // Línea punteada izquierda
-            drawDashedLine(doc, margin, margin, margin, pageHeight - margin);
-            // Línea punteada derecha
-            drawDashedLine(doc, pageWidth - margin, margin, pageWidth - margin, pageHeight - margin);
-        
-            // Función auxiliar para línea punteada
-            function drawDashedLine(doc, x1, y1, x2, y2) {
-                const dashLength = 1;
-                const gapLength = 1;
-
-                if (x1 === x2) {
-                    // Línea vertical
-                    for (let y = y1; y < y2; y += dashLength + gapLength) {
-                        doc.line(x1, y, x1, Math.min(y + dashLength, y2));
-                    }
-                } else {
-                    // Línea horizontal
-                    for (let x = x1; x < x2; x += dashLength + gapLength) {
-                        doc.line(x, y1, Math.min(x + dashLength, x2), y1);
-                    }
-                }
-            }
-        
+            
             // Generar nombre de archivo seguro
             const safeFileName = product.name
                 .toLowerCase()
