@@ -17,6 +17,20 @@
             }
         };
 
+        // Configuration for Inventory Excel (para respetar IDs existentes)
+        const EXCEL_CONFIG_INVENTORY = {
+            sheetName: 'Inventario',
+            headers: ['ID', 'Nombre', 'Precio', 'Categoría', 'Stock', 'Última Actualización'],
+            mappings: {
+                id: 'ID',
+                name: 'Nombre',
+                price: 'Precio',
+                category: 'Categoría',
+                stock: 'Stock',
+                lastUpdateDate: 'Última Actualización'
+            }
+        };
+
         // Configuration for Sales Excel
         const EXCEL_CONFIG_SALES = {
             sheetName: 'Ventas',
@@ -466,6 +480,109 @@
             return processedProducts;
         }
 
+        // Función para procesar datos del Excel de inventario (respeta IDs existentes)
+        function processExcelInventoryData(excelData) {
+            const processedProducts = [];
+            const updatedProducts = [];
+            const skippedProducts = [];
+        
+            excelData.forEach((row, index) => {
+                // Saltar filas vacías
+                if (!row[EXCEL_CONFIG_INVENTORY.mappings.id] && !row[EXCEL_CONFIG_INVENTORY.mappings.name]) {
+                    return;
+                }
+            
+                try {
+                    // Obtener datos del Excel
+                    const id = String(row[EXCEL_CONFIG_INVENTORY.mappings.id]).trim();
+                    const name = String(row[EXCEL_CONFIG_INVENTORY.mappings.name]).trim();
+                    const price = parseFloat(row[EXCEL_CONFIG_INVENTORY.mappings.price]);
+                    const category = String(row[EXCEL_CONFIG_INVENTORY.mappings.category]).trim().toLowerCase();
+                    const stock = parseInt(row[EXCEL_CONFIG_INVENTORY.mappings.stock]);
+                    const lastUpdateDate = String(row[EXCEL_CONFIG_INVENTORY.mappings.lastUpdateDate] || new Date().toLocaleString());
+                
+                    // Validaciones básicas
+                    if (!id || id.length === 0) {
+                        throw new Error(`ID vacío en fila ${index + 2}`);
+                    }
+
+                    if (!name || name.length === 0) {
+                        throw new Error(`Nombre vacío en fila ${index + 2}`);
+                    }
+                
+                    if (isNaN(price) || price <= 0) {
+                        throw new Error(`Precio inválido en fila ${index + 2}`);
+                    }
+                
+                    if (!category || category.length === 0) {
+                        throw new Error(`Categoría vacía en fila ${index + 2}`);
+                    }
+                
+                    if (isNaN(stock) || stock < 0) {
+                        throw new Error(`Stock inválido en fila ${index + 2}`);
+                    }
+                
+                    // Buscar si el producto ya existe
+                    const existingProductIndex = products.findIndex(p => p.id === id);
+
+                    if (existingProductIndex > -1) {
+                        // Producto existe: ACTUALIZAR
+                        const existingProduct = products[existingProductIndex];
+                        const previousStock = existingProduct.stock;
+
+                        // Actualizar producto existente
+                        products[existingProductIndex] = {
+                            ...existingProduct,
+                            name: name,
+                            price: price,
+                            category: category,
+                            stock: stock,
+                            lastUpdateDate: lastUpdateDate,
+                            previousStock: previousStock
+                        };
+
+                        updatedProducts.push({
+                            id,
+                            name,
+                            oldStock: previousStock,
+                            newStock: stock
+                        });
+
+                        console.log(`Fila ${index + 2}: Actualizado producto existente ID: ${id}`);
+                    } else {
+                        // Producto NO existe: CREAR NUEVO
+                        const now = new Date().toLocaleString();
+                        const newProduct = {
+                            id: id,
+                            name: name,
+                            price: price,
+                            category: category,
+                            stock: stock,
+                            creationDate: now,
+                            lastUpdateDate: lastUpdateDate,
+                            previousStock: 0
+                        };
+
+                        products.push(newProduct);
+                        processedProducts.push(newProduct);
+
+                        console.log(`Fila ${index + 2}: Creado nuevo producto ID: ${id}`);
+                    }
+                
+                } catch (error) {
+                    console.warn(`Error en fila ${index + 2} del inventario: ${error.message}`);
+                    showStatusMessage(`Advertencia en fila ${index + 2}: ${error.message}`, 'error');
+                    skippedProducts.push(index + 2);
+                }
+            });
+
+            return {
+                processed: processedProducts,
+                updated: updatedProducts,
+                skipped: skippedProducts
+            };
+        }
+
         // Función para procesar datos del Excel y actualizar usuarios
         function processExcelUsersData(excelData) {
             const processedUsers = [];
@@ -575,7 +692,7 @@
 
             // Crear libro de trabajo
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Productos_Exportados');
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
 
             // Generar nombre de archivo con fecha
             const date = new Date();
@@ -1001,7 +1118,7 @@
             // Agregar event listeners a los botones de agregar al carrito
             document.querySelectorAll('.add-to-cart').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    const productId = parseInt(e.target.closest('.add-to-cart').dataset.id);
+                    const productId = e.target.closest('.add-to-cart').dataset.id;
                     addToCart(productId);
                 });
             });
@@ -1009,7 +1126,7 @@
             // Add event listeners for edit buttons
             document.querySelectorAll('.edit-btn').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    const productId = parseInt(e.target.closest('.edit-btn').dataset.id);
+                    const productId = e.target.closest('.edit-btn').dataset.id;
                     openUpdateProductModal(productId);
                 });
             });
@@ -1017,7 +1134,7 @@
             // Add event listeners for label buttons
             document.querySelectorAll('.label-btn').forEach(button => {
                 button.addEventListener('click', (e) => {
-                    const productId = parseInt(e.target.closest('.label-btn').dataset.id);
+                    const productId = e.target.closest('.label-btn').dataset.id;
                     openLabelSettingsModal(productId);
                 });
             });
@@ -1124,7 +1241,7 @@
                 // Agregar event listeners a los controles de cantidad (input change)
                 document.querySelectorAll('.item-quantity').forEach(input => {
                     input.addEventListener('change', (e) => {
-                        const productId = parseInt(e.target.dataset.id);
+                        const productId = e.target.dataset.id;
                         const newQuantity = parseFloat(e.target.value);
                         updateQuantityFromInput(productId, newQuantity);
                     });
@@ -1133,7 +1250,7 @@
                 // Agregar event listeners a los botones de eliminar
                 document.querySelectorAll('.remove-item').forEach(button => {
                     button.addEventListener('click', (e) => {
-                        const productId = parseInt(e.target.closest('.remove-item').dataset.id);
+                        const productId = e.target.closest('.remove-item').dataset.id;
                         removeFromCart(productId);
                     });
                 });
@@ -3381,98 +3498,131 @@
 
 
         // Function to toggle edit mode
+        // Función para activar/desactivar el modo edición
         function toggleEditMode() {
-            const enteredPassword = prompt('Introduce la clave de administrador para activar/desactivar el modo edición:');
-
-            if (enteredPassword === ADMIN_PASSWORD) {
-                editModeActive = !editModeActive;
-
-                // Select all edit buttons (within the table rows)
-                const editButtons = document.querySelectorAll('.products-table .edit-btn');
-                editButtons.forEach(button => {
-                    if (editModeActive) {
-                        button.classList.remove('hidden-edit-button');
-                    } else {
-                        button.classList.add('hidden-edit-button');
-                    }
-                });
-
-                // Toggle visibility of add product button and excel controls
-                const addProductBtn = document.getElementById('open-add-product-modal-btn');
-                if (addProductBtn) {
-                    if (editModeActive) {
-                        addProductBtn.classList.remove('hidden-edit-button');
-                    } else {
-                        addProductBtn.classList.add('hidden-edit-button');
-                    }
-                }
-
-                // Toggle visibility of add user button
-                const addUserBtn = document.getElementById('open-add-user-modal-btn');
-                if (addUserBtn) {
-                    if (editModeActive) {
-                        addUserBtn.classList.remove('hidden-edit-button');
-                    } else {
-                        addUserBtn.classList.add('hidden-edit-button');
-                    }
-                }
-
-                // Toggle visibility of arrival button (both in product management section and excel controls)
-                const openArrivalModalBtn = document.getElementById('open-arrival-modal-btn');
-                const excelControlsArrivalBtn = document.querySelector('.excel-controls #open-arrival-modal-btn');
-                const exportArrivalsBtn = document.getElementById('export-arrivals');
-
-                [openArrivalModalBtn, excelControlsArrivalBtn].forEach(btn => {
-                    if (btn) {
-                        if (editModeActive) {
-                            btn.classList.remove('hidden-edit-button');
-                        } else {
-                            btn.classList.add('hidden-edit-button');
-                        }
-                    }
-                });
+            const password = prompt('Ingrese la contraseña de administrador:');
             
-                if (exportArrivalsBtn) {
-                    if (editModeActive) {
-                        exportArrivalsBtn.classList.remove('hidden-edit-button');
-                    } else {
-                        exportArrivalsBtn.classList.add('hidden-edit-button');
-                    }
-                }
+            if (password === ADMIN_PASSWORD) {
+                editModeActive = !editModeActive;
                 
-                // Toggle visibility of excel controls
-                if (excelControls) {
-                    if (editModeActive) {
+                // Alternar clase en el body
+                if (editModeActive) {
+                    document.body.classList.add('edit-mode-active');
+                    showStatusMessage('Modo edición activado', 'success');
+                    
+                    // Mostrar botones de edición en productos
+                    document.querySelectorAll('.edit-btn').forEach(btn => {
+                        btn.classList.remove('hidden-edit-button');
+                    });
+                    
+                    // Mostrar botones de etiqueta
+                    document.querySelectorAll('.label-btn').forEach(btn => {
+                        btn.classList.remove('hidden-edit-button');
+                    });
+                    
+                    // Mostrar sección de botones antes del footer
+                    const preFooterButtons = document.querySelector('.pre-footer-buttons');
+                    if (preFooterButtons) {
+                        preFooterButtons.classList.remove('hidden-edit-button');
+                    }
+                    
+                    // Mostrar controles Excel si existen
+                    const excelControls = document.querySelector('.excel-controls');
+                    if (excelControls) {
                         excelControls.classList.remove('hidden-edit-button');
-                    } else {
+                    }
+                    
+                    // Mostrar botones de gestión si existen
+                    const productManagementOptions = document.querySelector('.product-management-options');
+                    if (productManagementOptions) {
+                        productManagementOptions.classList.remove('hidden-edit-button');
+                    }
+                    
+                } else {
+                    document.body.classList.remove('edit-mode-active');
+                    showStatusMessage('Modo edición desactivado', 'info');
+                    
+                    // Ocultar botones de edición en productos
+                    document.querySelectorAll('.edit-btn').forEach(btn => {
+                        btn.classList.add('hidden-edit-button');
+                    });
+                    
+                    // Ocultar botones de etiqueta
+                    document.querySelectorAll('.label-btn').forEach(btn => {
+                        btn.classList.add('hidden-edit-button');
+                    });
+                    
+                    // Ocultar sección de botones antes del footer
+                    const preFooterButtons = document.querySelector('.pre-footer-buttons');
+                    if (preFooterButtons) {
+                        preFooterButtons.classList.add('hidden-edit-button');
+                    }
+                    
+                    // Ocultar controles Excel si existen
+                    const excelControls = document.querySelector('.excel-controls');
+                    if (excelControls) {
                         excelControls.classList.add('hidden-edit-button');
                     }
-                }
-
-                // Toggle visibility of reports button
-                const reportsBtn = document.getElementById('open-reports-modal-btn');
-                if (reportsBtn) {
-                    if (editModeActive) {
-                        reportsBtn.classList.remove('hidden-edit-button');
-                    } else {
-                        reportsBtn.classList.add('hidden-edit-button');
+                    
+                    // Ocultar botones de gestión si existen
+                    const productManagementOptions = document.querySelector('.product-management-options');
+                    if (productManagementOptions) {
+                        productManagementOptions.classList.add('hidden-edit-button');
                     }
                 }
-
-                // En la función toggleEditMode, agrega:
-                const investmentReportBtn = document.getElementById('open-investment-report-btn');
-                if (investmentReportBtn) {
-                    if (editModeActive) {
-                        investmentReportBtn.classList.remove('hidden-edit-button');
-                    } else {
-                        investmentReportBtn.classList.add('hidden-edit-button');
-                    }
+            } else if (password !== null) {
+                showStatusMessage('Contraseña incorrecta', 'error');
+            }
+        }
+        
+        // Asignar event listener al botón de toggle
+        document.getElementById('toggle-edit-mode-btn').addEventListener('click', toggleEditMode);
+        
+        // Verificar si hay estado guardado de modo edición al cargar
+        document.addEventListener('DOMContentLoaded', function() {
+            // Intentar cargar estado del modo edición desde localStorage
+            const savedEditMode = localStorage.getItem('editModeActive');
+            if (savedEditMode === 'true') {
+                // Simular entrada de contraseña para reactivar
+                editModeActive = false; // Resetear para que toggle funcione
+                toggleEditMode();
+            }
+        });
+        
+        // Guardar estado del modo edición
+        function saveEditModeState() {
+            localStorage.setItem('editModeActive', editModeActive.toString());
+        }
+        
+        // Actualizar la función toggleEditMode para guardar estado
+        // Reemplaza la función toggleEditMode con esta versión mejorada:
+        function toggleEditMode() {
+            const password = prompt('Ingrese la contraseña de administrador:');
+            
+            if (password === ADMIN_PASSWORD) {
+                editModeActive = !editModeActive;
+                saveEditModeState();
+                
+                // Alternar clase en el body
+                if (editModeActive) {
+                    document.body.classList.add('edit-mode-active');
+                    showStatusMessage('Modo edición activado', 'success');
+                } else {
+                    document.body.classList.remove('edit-mode-active');
+                    showStatusMessage('Modo edición desactivado', 'info');
                 }
-
-
-                showStatusMessage(editModeActive ? 'Modo edición ACTIVADO' : 'Modo edición DESACTIVADO', 'info');
-            } else if (enteredPassword !== null) {
-                showStatusMessage('Clave incorrecta. El modo edición no se activó.', 'error');
+                
+                // Actualizar todos los elementos con clase hidden-edit-button
+                document.querySelectorAll('.hidden-edit-button').forEach(element => {
+                    if (editModeActive) {
+                        element.classList.remove('hidden-edit-button');
+                    } else {
+                        element.classList.add('hidden-edit-button');
+                    }
+                });
+                
+            } else if (password !== null) {
+                showStatusMessage('Contraseña incorrecta', 'error');
             }
         }
     
@@ -3728,7 +3878,7 @@
             console.log('=== INICIANDO registerArrivalFromForm CON COSTO ===');
         
             // Obtener datos del formulario
-            const productId = parseInt(arrivalProductSelect.value);
+            const productId = arrivalProductSelect.value;
             const quantity = parseFloat(arrivalQuantityInput.value);
             const cost = parseFloat(arrivalCostInput.value); // NUEVO
             const notes = arrivalNotesInput.value.trim();
@@ -4183,6 +4333,81 @@
                 }
             });
 
+            // Event listener para cargar archivo de inventario
+            const inventoryExcelFileInput = document.getElementById('inventory-excel-file');
+            if (inventoryExcelFileInput) {
+                inventoryExcelFileInput.addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                
+                    if (!file) {
+                        return;
+                    }
+                
+                    // Validar extensión del archivo
+                    const validExtensions = ['.xlsx', '.xls', '.csv'];
+                    const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+                
+                    if (!validExtensions.includes(fileExtension)) {
+                        showStatusMessage('Formato de archivo no válido. Usa .xlsx, .xls o .csv', 'error');
+                        inventoryExcelFileInput.value = '';
+                        return;
+                    }
+                
+                    try {
+                        showStatusMessage('Procesando archivo de inventario...', 'info');
+                    
+                        // Leer archivo Excel
+                        const { sheetName, data: excelData } = await readExcelFile(file);
+                    
+                        // Verificar que sea la hoja correcta
+                        if (sheetName !== EXCEL_CONFIG_INVENTORY.sheetName) {
+                            throw new Error(`El archivo debe tener una hoja llamada '${EXCEL_CONFIG_INVENTORY.sheetName}'. Se encontró: '${sheetName}'`);
+                        }
+                    
+                        // Validar headers
+                        const requiredHeaders = Object.values(EXCEL_CONFIG_INVENTORY.mappings);
+                        const actualHeaders = Object.keys(excelData[0] || {});
+                        const missingHeaders = requiredHeaders.filter(header => !actualHeaders.includes(header));
+                    
+                        if (missingHeaders.length > 0) {
+                            throw new Error(`El archivo de inventario debe contener las siguientes columnas: ${missingHeaders.join(', ')}`);
+                        }
+                    
+                        // Procesar datos de inventario
+                        const result = processExcelInventoryData(excelData);
+                    
+                        // Mostrar resultados
+                        const message = `
+                            Inventario procesado exitosamente:<br>
+                            • ${result.processed.length} productos nuevos creados<br>
+                            • ${result.updated.length} productos existentes actualizados<br>
+                            • ${result.skipped.length} filas omitidas por errores
+                        `;
+                        
+                        showStatusMessage(message, 'success');
+                    
+                        // Actualizar interfaz
+                        currentPage = 1;
+                        renderSubcategories();
+                        renderProducts();
+                        saveProductsToLocalStorage();
+                    
+                    } catch (error) {
+                        showStatusMessage(`Error al cargar inventario: ${error.message}`, 'error');
+                        console.error('Error al cargar archivo de inventario:', error);
+                    }
+                    finally {
+                        inventoryExcelFileInput.value = '';
+                    }
+                });
+            }
+            
+            // Event listener para descargar plantilla de inventario
+            const downloadInventoryTemplateBtn = document.getElementById('download-inventory-template');
+            if (downloadInventoryTemplateBtn) {
+                downloadInventoryTemplateBtn.addEventListener('click', downloadInventoryTemplate);
+            }
+
             // Event listener para descargar plantilla
             downloadTemplateBtn.addEventListener('click', downloadTemplate);
 
@@ -4264,7 +4489,7 @@
             // Event listener for Update Product Form submission
             updateProductForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const id = parseInt(updateProductIdInput.value);
+                const id = updateProductIdInput.value;
                 const name = updateProductNameInput.value.trim();
                 const price = parseFloat(updateProductPriceInput.value);
                 const category = updateProductCategoryInput.value.trim().toLowerCase();
