@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1359,6 +1360,174 @@
             border-left-color: #4299e1;
             color: #2a4365;
         }
+
+        /* Clase para ocultar elementos cuando no está activo el modo edición */
+        .hidden-edit-button {
+            display: none !important;
+        }
+
+        /* Cuando el modo edición está activo, mostrar los botones */
+        .edit-mode-active .hidden-edit-button {
+            display: block !important;
+        }
+
+        /* Botones antes del footer */
+        .pre-footer-buttons {
+            background-color: #f8f9fa;
+            border-top: 1px solid #dee2e6;
+            border-bottom: 1px solid #dee2e6;
+            padding: 20px;
+            margin-top: 30px;
+            margin-bottom: 0;
+            transition: all 0.3s ease;
+        }
+
+        /* Cuando no está en modo edición, reducir margen */
+        body:not(.edit-mode-active) .pre-footer-buttons {
+            display: none;
+        }
+
+        body:not(.edit-mode-active) .main-content {
+            margin-bottom: 20px;
+        }
+
+        .button-section {
+            margin-bottom: 25px;
+        }
+
+        .button-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .button-section h3 {
+            color: var(--primary);
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        /* Botones de archivo */
+        .file-input-container {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .file-btn {
+            flex: 1;
+            background-color: var(--primary);
+            color: white;
+            padding: 12px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-weight: 500;
+            border: 1px solid var(--primary);
+        }
+
+        .file-btn.inventory {
+            background-color: #17a2b8;
+            border-color: #17a2b8;
+        }
+
+        /* Botones simples */
+        .simple-btn {
+            padding: 12px 15px;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            background-color: white;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 180px;
+        }
+
+        .simple-btn.excel {
+            background-color: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+
+        .simple-btn.template {
+            background-color: #6c757d;
+            color: white;
+            border-color: #6c757d;
+        }
+
+        .simple-btn.management {
+            background-color: var(--dark);
+            color: white;
+            border-color: var(--dark);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .pre-footer-buttons {
+                padding: 15px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .file-input-container {
+                flex-direction: column;
+            }
+
+            .simple-btn {
+                min-width: 100%;
+            }
+        }
+
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .button-group {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .file-input-container {
+                grid-column: 1 / -1;
+            }
+        }
+
+        @media (min-width: 1025px) {
+            .button-group {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .file-input-container {
+                grid-column: 1 / -1;
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Asegurar que los botones en las tarjetas también se oculten/muestren */
+        .edit-mode-active .action-buttons-cell .edit-btn {
+            display: inline-block !important;
+        }
+
+        .edit-mode-active .action-buttons-cell .label-btn {
+            display: inline-block !important;
+        }
         
         /* Responsive */
         @media (max-width: 768px) {
@@ -1775,59 +1944,8 @@
 
         <div class="main-content">
             <section class="products-section">
-                <div class="excel-controls hidden-edit-button">
-                    <div class="file-input-container">
-                        <label for="excel-file" class="file-input-label">
-                            <i class="fas fa-file-excel"></i> Cargar Excel
-                        </label>
-                        <input type="file" id="excel-file" class="file-input" accept=".xlsx, .xls, .csv">
-                        <div class="file-info" id="file-info">No se ha cargado ningún archivo</div>
-                    </div>
-
-                    <div class="excel-actions">
-                        <button type="button" class="excel-btn download-template-btn" id="download-template" style="display: none;">
-                            <i class="fas fa-download"></i> Plantilla
-                        </button>
-                        <button type="button" class="excel-btn export-btn" id="export-products">
-                            <i class="fas fa-file-export"></i> Exportar Productos
-                        </button>
-                        <button type="button" class="excel-btn export-sales-btn" id="export-sales">
-                            <i class="fas fa-file-invoice-dollar"></i> Exportar Ventas
-                        </button>
-
-                        <button type="button" class="excel-btn export-users-btn" id="export-users">
-                            <i class="fas fa-users"></i> Exportar Usuarios
-                        </button>
-                        <button type="button" class="excel-btn export-arrivals-btn" id="export-arrivals">
-                            <i class="fas fa-truck-loading"></i> Exportar llegadas
-                        </button>
-                        <button type="button" id="import-users-btn" class="btn btn-secondary excel-btn" style="display: none;">
-                            <i class="fas fa-upload"></i> Importar Usuarios
-                        </button>
-
-                    </div>
-                </div>
 
                 <div id="status-message"></div>
-
-                <!-- Product Management Buttons -->
-                <div class="product-management-options">
-                    <button type="button" class="manage-products-btn hidden-edit-button" id="open-add-product-modal-btn">
-                        <i class="fas fa-plus"></i> Agregar Nuevo Producto
-                    </button>
-                    <button type="button" class="manage-products-btn hidden-edit-button" id="open-add-user-modal-btn">
-                        <i class="fas fa-user-plus"></i> Agregar Usuario
-                    </button>
-                    <button type="button" id="open-arrival-modal-btn" class="excel-btn export-btn hidden-edit-button">
-                        <i class="fas fa-truck-loading"></i> Registrar Llegada
-                    </button>
-                    <button type="button" id="open-reports-modal-btn" class="excel-btn export-btn hidden-edit-button">
-                        <i class="fas fa-chart-line"></i> Reportes
-                    </button>
-                    <button type="button" id="open-investment-report-btn" class="excel-btn export-btn hidden-edit-button">
-                        <i class="fas fa-chart-pie"></i> Reporte de Inversión
-                    </button>
-                </div>
                 <!-- End Product Management Buttons -->
 
                 <!-- Barra de búsqueda agregada aquí -->
@@ -2218,6 +2336,64 @@
             </div>
         </div>
                 
+        </div>
+
+        <!-- Botones antes del footer (se ocultan/muestran con modo edición) -->
+        <div class="pre-footer-buttons hidden-edit-button">
+            <!-- Botones de Gestión -->
+            <div class="button-section">
+                <h3><i class="fas fa-cogs"></i> Gestión</h3>
+                <div class="button-group">
+                    <button type="button" class="simple-btn management" id="open-add-product-modal-btn">
+                        <i class="fas fa-plus"></i> Agregar Producto
+                    </button>
+                    <button type="button" class="simple-btn management" id="open-add-user-modal-btn">
+                        <i class="fas fa-user-plus"></i> Agregar Usuario
+                    </button>
+                    <button type="button" class="simple-btn management" id="open-arrival-modal-btn">
+                        <i class="fas fa-truck-loading"></i> Registrar Llegada
+                    </button>
+                    <button type="button" class="simple-btn management" id="open-reports-modal-btn">
+                        <i class="fas fa-chart-line"></i> Reportes
+                    </button>
+                    <button type="button" class="simple-btn management" id="open-investment-report-btn">
+                        <i class="fas fa-chart-pie"></i> Inversión
+                    </button>
+                </div>
+            </div>
+
+            <!-- Botones de Excel -->
+            <div class="button-section">
+                <h3><i class="fas fa-file-excel"></i> Importar/Exportar</h3>
+                <div class="button-group">
+                    <div class="file-input-container">
+                        <label for="inventory-excel-file" class="file-btn inventory">
+                            <i class="fas fa-clipboard-list"></i> Cargar Inventario
+                        </label>
+                        <input type="file" id="inventory-excel-file" class="file-input" accept=".xlsx, .xls, .csv">
+                        <label for="excel-file" class="file-btn">
+                            <i class="fas fa-upload"></i> Cargar Excel
+                        </label>
+                        <input type="file" id="excel-file" class="file-input" accept=".xlsx, .xls, .csv">
+                    </div>
+
+                    <button type="button" class="simple-btn excel" id="export-products">
+                        <i class="fas fa-box"></i> Exportar Productos
+                    </button>
+                    <button type="button" class="simple-btn excel" id="export-sales">
+                        <i class="fas fa-receipt"></i> Exportar Ventas
+                    </button>
+                    <button type="button" class="simple-btn excel" id="export-users">
+                        <i class="fas fa-users"></i> Exportar Usuarios
+                    </button>
+                    <button type="button" class="simple-btn excel" id="export-arrivals">
+                        <i class="fas fa-truck"></i> Exportar Llegadas
+                    </button>
+                    <button type="button" class="simple-btn template" id="download-template" style="display: none;">
+                        <i class="fas fa-download"></i> Plantilla
+                    </button>
+                </div>
+            </div>
         </div>
 
         <footer>
